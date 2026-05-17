@@ -19,9 +19,6 @@ Texodus is a modern, fast, and beautiful Markdown editor built with **Tauri 2** 
 
 ## 📸 Gallery
 
-### Preview Only Mode (light theme)
-![Preview Only Mode](screenshots/Screenshot_01.png)
-
 ### Preview Only Mode (dark theme)
 ![Preview Only Mode](screenshots/Screenshot_02.png)
 
