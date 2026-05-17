@@ -1,6 +1,7 @@
 import { Menu, Submenu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
-import { openFile, saveFile, saveFileAs, newFile } from '../services/fileService';
+import { openFile, saveFile, saveFileAs, newFile, loadFileFromPath } from '../services/fileService';
 import type { useEditorStore } from '../stores/editor';
+import { useSettingsStore } from '../stores/settings';
 
 type EditorStore = ReturnType<typeof useEditorStore>;
 
@@ -18,6 +19,42 @@ const isMac = navigator.userAgent.includes('Macintosh');
  * they have a single owner and don't double-fire.
  */
 export async function setupAppMenu(store: EditorStore): Promise<void> {
+  const settingsStore = useSettingsStore();
+
+  const recentMenuItems: (MenuItem | PredefinedMenuItem)[] = [];
+  if (settingsStore.recentFiles.length === 0) {
+    recentMenuItems.push(await MenuItem.new({
+      id: 'recent-empty',
+      text: 'No Recent Files',
+      enabled: false,
+      action: () => {},
+    }));
+  } else {
+    for (let i = 0; i < settingsStore.recentFiles.length; i++) {
+      const filePath = settingsStore.recentFiles[i];
+      const parts = filePath.split(/[\\/]/);
+      const label = parts.length >= 2
+        ? `${parts[parts.length - 1]}  —  ${parts[parts.length - 2]}`
+        : parts[parts.length - 1];
+      recentMenuItems.push(await MenuItem.new({
+        id: `recent-${i}`,
+        text: label,
+        action: () => { void loadFileFromPath(store, filePath); },
+      }));
+    }
+    recentMenuItems.push(await PredefinedMenuItem.new({ item: 'Separator' }));
+    recentMenuItems.push(await MenuItem.new({
+      id: 'recent-clear',
+      text: 'Clear Recent Files',
+      action: () => { settingsStore.clearRecentFiles(); },
+    }));
+  }
+
+  const openRecentSubmenu = await Submenu.new({
+    text: 'Open Recent',
+    items: recentMenuItems,
+  });
+
   const fileItems = [
     await MenuItem.new({
       id: 'file-new',
@@ -31,6 +68,7 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
       accelerator: 'CmdOrCtrl+O',
       action: () => { void openFile(store); },
     }),
+    openRecentSubmenu,
     await PredefinedMenuItem.new({ item: 'Separator' }),
     await MenuItem.new({
       id: 'file-save',

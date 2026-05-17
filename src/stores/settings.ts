@@ -33,32 +33,40 @@ export const FONT_SIZES = [
 export const FONT_SIZE_MIN = FONT_SIZES[0];
 export const FONT_SIZE_MAX = FONT_SIZES[FONT_SIZES.length - 1];
 
-interface SettingsState {
+const RECENT_FILES_MAX = 10;
+
+interface PersistedSettings {
   layoutMode: LayoutMode;
   themeMode: ThemeMode;
   editorFont: string;
   previewFont: string;
   fontSize: number;
+  recentFiles: string[];
+}
+
+interface SettingsState extends PersistedSettings {
+  settingsVisible: boolean;
 }
 
 const STORAGE_KEY = 'texodus.settings.v1';
-const DEFAULTS: SettingsState = {
+const DEFAULTS: PersistedSettings = {
   layoutMode: 'split',
   themeMode: 'system',
   editorFont: EDITOR_FONTS[0].value,
   previewFont: PREVIEW_FONTS[0].value,
   fontSize: 14,
+  recentFiles: [],
 };
 
 function loadFromStorage(): SettingsState {
-  if (typeof localStorage === 'undefined') return { ...DEFAULTS };
+  if (typeof localStorage === 'undefined') return { ...DEFAULTS, settingsVisible: false };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<SettingsState>;
-    return { ...DEFAULTS, ...parsed };
+    if (!raw) return { ...DEFAULTS, settingsVisible: false };
+    const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+    return { ...DEFAULTS, ...parsed, settingsVisible: false };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, settingsVisible: false };
   }
 }
 
@@ -67,6 +75,7 @@ export const useSettingsStore = defineStore('settings', {
   actions: {
     setLayoutMode(mode: LayoutMode) { this.layoutMode = mode; },
     setThemeMode(mode: ThemeMode) { this.themeMode = mode; },
+    setSettingsVisible(v: boolean) { this.settingsVisible = v; },
     setEditorFont(font: string) { this.editorFont = font; },
     setPreviewFont(font: string) { this.previewFont = font; },
     setFontSize(size: number) {
@@ -76,10 +85,20 @@ export const useSettingsStore = defineStore('settings', {
       const modes: ThemeMode[] = ['system', 'light', 'dark'];
       this.themeMode = modes[(modes.indexOf(this.themeMode) + 1) % modes.length];
     },
+    addRecentFile(path: string) {
+      this.recentFiles = [
+        path,
+        ...this.recentFiles.filter(p => p !== path),
+      ].slice(0, RECENT_FILES_MAX);
+    },
+    clearRecentFiles() {
+      this.recentFiles = [];
+    },
     persist() {
       if (typeof localStorage === 'undefined') return;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.$state));
+        const { settingsVisible: _, ...toSave } = this.$state;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
       } catch {
         // Quota exceeded or unavailable — silently ignore.
       }

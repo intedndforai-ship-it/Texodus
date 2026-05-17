@@ -27,6 +27,7 @@
     </div>
     <UnsavedChangesDialog />
     <AboutDialog />
+    <SettingsDialog />
   </ThemeProvider>
 </template>
 
@@ -43,6 +44,7 @@ import ThemeProvider from './components/ThemeProvider.vue';
 import KeyboardShortcuts from './components/KeyboardShortcuts.vue';
 import UnsavedChangesDialog from './components/UnsavedChangesDialog.vue';
 import AboutDialog from './components/AboutDialog.vue';
+import SettingsDialog from './components/SettingsDialog.vue';
 import {
   openFile, saveFile, saveFileAs, newFile,
   loadFileFromPath, updateWindowTitle,
@@ -68,6 +70,16 @@ const handleOpenFile = () => openFile(editorStore);
 const handleSaveFile = () => saveFile(editorStore);
 const handleSaveAs = () => saveFileAs(editorStore);
 const handleFormat = (format) => applyFormat(format, getEditorElement());
+
+// ── Rebuild native menu when recent files change ──────────────────────────────
+
+watch(
+  () => settingsStore.recentFiles,
+  async () => {
+    try { await setupAppMenu(editorStore); } catch { /* non-critical */ }
+  },
+  { deep: true }
+);
 
 // ── Window title for titlebar ─────────────────────────────────────────────────
 

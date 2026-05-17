@@ -2,10 +2,10 @@ import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { open, save, message } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEditorStore } from '../stores/editor';
+import { useSettingsStore } from '../stores/settings';
 import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
 
-const APP_NAME = 'Texodus';
-const FILE_FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
+const FILE_FILTERS =[{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
 
 type EditorStore = ReturnType<typeof useEditorStore>;
 
@@ -32,6 +32,7 @@ export async function openFile(store: EditorStore): Promise<void> {
     const path = selected as string;
     const content = await readTextFile(path);
     store.loadFile(content, path);
+    useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
   } catch (e) {
     await showError('Failed to open file', e);
@@ -43,6 +44,7 @@ export async function loadFileFromPath(store: EditorStore, path: string): Promis
     if (!(await confirmCanProceed(store))) return;
     const content = await readTextFile(path);
     store.loadFile(content, path);
+    useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
   } catch (e) {
     await showError('Failed to open file', e);
@@ -76,6 +78,7 @@ export async function saveFileAs(store: EditorStore): Promise<boolean> {
     await writeTextFile(path, store.content);
     store.setFilePath(path);
     store.setDirty(false);
+    useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
     showToast('File saved');
     return true;

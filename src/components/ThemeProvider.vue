@@ -95,29 +95,32 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling — macOS-style overlay: invisible by default, fades in
-   when the user hovers over a scrollable element. The 2px transparent border
-   on the thumb (combined with background-clip: padding-box) gives it the
-   characteristic inset look of native overlay scrollbars. */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+/* Scrollbar styling — macOS-style overlay: invisible by default, appears
+   when the user hovers over a scrollable element. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background-color: transparent;
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 6px;
-  transition: background-color 0.25s ease;
+  border-radius: 4px;
 }
 
-/* Show thumb only when the user is hovering the scrollable element. */
-*:hover::-webkit-scrollbar-thumb {
+/* Show thumb only when hovering the scrollable element itself. */
+.editor-pane:hover::-webkit-scrollbar-thumb,
+.preview-pane:hover::-webkit-scrollbar-thumb,
+.preview-content:hover::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
 }
-*:hover::-webkit-scrollbar-thumb:hover {
+.editor-pane:hover::-webkit-scrollbar-thumb:hover,
+.preview-pane:hover::-webkit-scrollbar-thumb:hover,
+.preview-content:hover::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Firefox / Gecko (no-op in Tauri's WebKit/WebView2, but kept for parity). */
 * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-*:hover { scrollbar-color: var(--scrollbar-thumb) transparent; }
+.editor-pane:hover,
+.preview-pane:hover,
+.preview-content:hover { scrollbar-color: var(--scrollbar-thumb) transparent; }
 </style>
