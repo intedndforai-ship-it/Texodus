@@ -5,9 +5,9 @@
         <button class="close-btn" @click="close" aria-label="Close">&times;</button>
         
         <div class="about-header">
-          <div class="app-icon"></div>
+          <img src="../assets/logo.png" class="app-icon" alt="Texodus Logo" />
           <h1>Texodus</h1>
-          <p class="version">Version 1.0.0</p>
+          <p class="version">Version {{ appVersion }}</p>
         </div>
 
         <div class="tabs">
@@ -46,11 +46,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { getVersion } from '@tauri-apps/api/app';
 import { useEditorStore } from '../stores/editor';
 
 const editorStore = useEditorStore();
 const activeTab = ref<'info' | 'license'>('info');
+const appVersion = ref('0.5.2');
+
+onMounted(async () => {
+  try {
+    appVersion.value = await getVersion();
+  } catch (error) {
+    console.warn('Could not fetch app version from Tauri, using fallback:', error);
+  }
+});
 
 const close = () => {
   editorStore.setAboutVisible(false);
@@ -805,9 +815,8 @@ Public License instead of this License.  But first, please read
   width: 64px;
   height: 64px;
   margin: 0 auto 1rem;
-  background-color: var(--accent-color);
-  mask: url(../assets/icons/icons8-view-stream-100.png) center / contain no-repeat;
-  -webkit-mask: url(../assets/icons/icons8-view-stream-100.png) center / contain no-repeat;
+  object-fit: contain;
+  display: block;
 }
 
 .about-header h1 {
