@@ -1,0 +1,61 @@
+name: Release Windows Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: ''
+        required: false
+        default: ''
+        type: string
+      draft:
+        description: 'Release as draft'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install Bun, since the project uses bun.lock
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Install Rust for Windows build (MSVC target)
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      # Cache Rust to speed up subsequent builds
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # Install dependencies using Bun
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Build the application and publish the release on GitHub
+      # tauri-action will automatically find the built .exe/.msi and attach them to the release
+      - name: Build Tauri app and upload assets
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # If the version is manually specified, use it. Otherwise, tauri-action will automatically use the version from tauri.conf.json
+          tagName: ${{ github.event.inputs.release_version != '' && format('v{0}', github.event.inputs.release_version) || 'v__VERSION__' }}
+          releaseName: ${{ github.event.inputs.release_version != '' && format('Texodus v{0}', github.event.inputs.release_version) || 'Texodus v__VERSION__' }}
+          releaseDraft: ${{ github.event.inputs.draft }}
+          prerelease: false
