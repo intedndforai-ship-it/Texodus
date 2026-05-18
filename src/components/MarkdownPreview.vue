@@ -39,8 +39,9 @@ const renderMarkdown = async () => {
       'ul','ol','li','blockquote','pre','code',
       'strong','em','del','a','img','table','thead',
       'tbody','tr','th','td','sup','sub','span','div',
+      'input',
     ],
-    ALLOWED_ATTR: ['href','src','alt','title','class','id','rel'],
+    ALLOWED_ATTR: ['href','src','alt','title','class','id','rel','type','checked'],
   });
   previewRef.value.innerHTML = clean;
 
@@ -62,8 +63,55 @@ watch(
   { immediate: true }
 );
 
-// Intercept external link clicks → open in system browser (§3.2)
+const toggleMarkdownCheckbox = (index) => {
+  const original = editorStore.content;
+  
+  // Mask fenced code blocks to prevent matching checkboxes in them
+  const masked = original.replace(/```[\s\S]*?```/g, (m) => ' '.repeat(m.length));
+  
+  // Regex to match markdown task list checkboxes: e.g., - [ ] or * [x]
+  // Matches list items starting with list markers (optionally inside blockquotes)
+  const checkboxRegex = /^[>\s]*([-*+]|\d+[.)])\s+(\[[ xX]\])/mg;
+  
+  let match;
+  let count = 0;
+  let foundStart = -1;
+  let isChecked = false;
+  
+  while ((match = checkboxRegex.exec(masked)) !== null) {
+    if (count === index) {
+      const cb = match[2]; // The checkbox portion: '[ ]', '[x]', or '[X]'
+      foundStart = match.index + match[0].indexOf(cb);
+      isChecked = cb !== '[ ]';
+      break;
+    }
+    count++;
+  }
+  
+  if (foundStart !== -1) {
+    const newContent = 
+      original.substring(0, foundStart) + 
+      (isChecked ? '[ ]' : '[x]') + 
+      original.substring(foundStart + 3);
+    
+    editorStore.updateContent(newContent);
+  }
+};
+
+// Intercept clicks in the preview (external links and checkboxes)
 const handleLinkClick = async (e) => {
+  // 1. Handle task list checkbox click
+  if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') {
+    e.preventDefault(); // Prevent visual toggle desync
+    const checkboxes = Array.from(previewRef.value.querySelectorAll('input[type="checkbox"]'));
+    const index = checkboxes.indexOf(e.target);
+    if (index !== -1) {
+      toggleMarkdownCheckbox(index);
+    }
+    return;
+  }
+
+  // 2. Handle external link clicks (§3.2)
   const anchor = e.target.closest('a[href]');
   if (!anchor) return;
   const href = anchor.getAttribute('href');
@@ -202,5 +250,12 @@ onUnmounted(() => {
   border: none;
   border-top: 2px solid var(--border-color);
   margin: 1.5em 0;
+}
+
+:deep(input[type="checkbox"]) {
+  margin-right: 0.5em;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+  vertical-align: middle;
 }
 </style>
