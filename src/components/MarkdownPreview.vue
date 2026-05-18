@@ -48,7 +48,7 @@ const renderMarkdown = async () => {
   // Lazy load Prism only when there are code blocks (§6.2)
   if (previewRef.value.querySelector('pre code')) {
     const Prism = await import('prismjs');
-    await import('prismjs/themes/prism-tomorrow.css');
+    await import('../themes/prism.css');
     Prism.default.highlightAllUnder(previewRef.value);
   }
 };
@@ -78,11 +78,20 @@ const handleLinkClick = async (e) => {
   }
 };
 
-const handleScroll = () => syncFromPreview();
+const SCROLL_HIDE_DELAY = 1200;
+let scrollHideTimer = null;
+const handleScroll = (e) => {
+  syncFromPreview();
+  const el = e.currentTarget;
+  el.classList.add('is-scrolling');
+  clearTimeout(scrollHideTimer);
+  scrollHideTimer = setTimeout(() => el.classList.remove('is-scrolling'), SCROLL_HIDE_DELAY);
+};
 
 onMounted(() => setPreviewElement(previewRef.value));
 onUnmounted(() => {
   clearTimeout(renderTimer);
+  clearTimeout(scrollHideTimer);
   setPreviewElement(null);
 });
 </script>
@@ -107,6 +116,7 @@ onUnmounted(() => {
 :deep(h6) {
   font-weight: 700;
   line-height: 1.3;
+  color: var(--heading-color);
   /* Fixed top gap so larger headings don't get a disproportionate margin
      (em margins scale with the heading's own font-size). */
   margin: 1.6rem 0 0.6rem;
@@ -151,11 +161,17 @@ onUnmounted(() => {
 
 :deep(pre) {
   background: var(--code-bg);
+  color: var(--code-text);
   padding: 1.1rem 1.3rem;
   border-radius: 8px;
   overflow-x: auto;
   margin: 1em 0;
   font-size: 13px;
+}
+
+:deep(pre code) {
+  color: var(--code-text);
+  font-family: var(--editor-font, monospace);
 }
 
 :deep(code):not(:where(pre *)) {

@@ -7,6 +7,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '../stores/settings';
+import { COLOR_SCHEMES } from '../themes';
 
 const settingsStore = useSettingsStore();
 const systemDark = ref(false);
@@ -31,10 +32,38 @@ const resolvedTheme = computed(() => {
   return settingsStore.themeMode;
 });
 
-const themeStyle = computed(() => ({
-  '--editor-font': settingsStore.editorFont,
-  '--preview-font': settingsStore.previewFont,
-}));
+const themeStyle = computed(() => {
+  const scheme = COLOR_SCHEMES.find(s => s.id === settingsStore.colorScheme) ?? COLOR_SCHEMES[0];
+  const t = scheme[resolvedTheme.value];
+  return {
+    '--bg-color':               t.bgColor,
+    '--bg-secondary':           t.bgSecondary,
+    '--toolbar-bg':             t.toolbarBg,
+    '--border-color':           t.borderColor,
+    '--text-color':             t.textColor,
+    '--text-muted':             t.textMuted,
+    '--accent-color':           t.accentColor,
+    '--accent-subtle':          t.accentSubtle,
+    '--btn-hover':              t.btnHover,
+    '--code-bg':                t.codeBg,
+    '--code-text':              t.codeText,
+    '--inline-code-bg':         t.inlineCodeBg,
+    '--blockquote-bg':          t.blockquoteBg,
+    '--scrollbar-thumb':        t.scrollbarThumb,
+    '--scrollbar-thumb-hover':  t.scrollbarThumbHover,
+    '--heading-color':          t.headingColor,
+    '--syntax-text':            t.codeText,
+    '--syntax-comment':         t.syntaxComment,
+    '--syntax-keyword':         t.syntaxKeyword,
+    '--syntax-string':          t.syntaxString,
+    '--syntax-number':          t.syntaxNumber,
+    '--syntax-function':        t.syntaxFunction,
+    '--syntax-variable':        t.syntaxVariable,
+    '--syntax-punctuation':     t.syntaxPunctuation,
+    '--editor-font':            settingsStore.editorFont,
+    '--preview-font':           settingsStore.previewFont,
+  };
+});
 </script>
 
 <style>
@@ -44,42 +73,6 @@ const themeStyle = computed(() => ({
   width: 100vw;
   overflow: hidden;
   transition: background-color 0.25s, color 0.25s;
-}
-
-/* Light theme */
-.theme-root.light {
-  --bg-color:         #fafafa;
-  --bg-secondary:     #f3f4f6;
-  --toolbar-bg:       rgba(255,255,255,0.85);
-  --border-color:     #e2e5ea;
-  --text-color:       #1a1d23;
-  --text-muted:       #6b7280;
-  --accent-color:     #6366f1;
-  --accent-subtle:    rgba(99, 102, 241, 0.12);
-  --btn-hover:        rgba(0,0,0,0.05);
-  --code-bg:          #1e1e2e;
-  --inline-code-bg:   rgba(99,102,241,0.08);
-  --blockquote-bg:    rgba(99,102,241,0.05);
-  --scrollbar-thumb:        rgba(0,0,0,0.22);
-  --scrollbar-thumb-hover:  rgba(0,0,0,0.4);
-}
-
-/* Dark theme */
-.theme-root.dark {
-  --bg-color:         #0d0f14;
-  --bg-secondary:     #151821;
-  --toolbar-bg:       rgba(16,18,26,0.88);
-  --border-color:     #252836;
-  --text-color:       #e2e4eb;
-  --text-muted:       #6b7280;
-  --accent-color:     #818cf8;
-  --accent-subtle:    rgba(129, 140, 248, 0.15);
-  --btn-hover:        rgba(255,255,255,0.06);
-  --code-bg:          #0a0c10;
-  --inline-code-bg:   rgba(129,140,248,0.12);
-  --blockquote-bg:    rgba(129,140,248,0.07);
-  --scrollbar-thumb:        rgba(255,255,255,0.22);
-  --scrollbar-thumb-hover:  rgba(255,255,255,0.4);
 }
 
 /* Global resets */
@@ -95,32 +88,31 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling — macOS-style overlay: invisible by default, appears
-   when the user hovers over a scrollable element. */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Scrollbar — overlay style: hidden by default, briefly visible while
+   scrolling. The `.is-scrolling` class is toggled by scroll handlers in
+   TextEditor.vue and MarkdownPreview.vue. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background-color: transparent;
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 4px;
+  border-radius: 5px;
+  transition: background-color 0.4s ease;
 }
 
-/* Show thumb only when hovering the scrollable element itself. */
-.editor-pane:hover::-webkit-scrollbar-thumb,
-.preview-pane:hover::-webkit-scrollbar-thumb,
-.preview-content:hover::-webkit-scrollbar-thumb {
+.editor-textarea.is-scrolling::-webkit-scrollbar-thumb,
+.preview-content.is-scrolling::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
 }
-.editor-pane:hover::-webkit-scrollbar-thumb:hover,
-.preview-pane:hover::-webkit-scrollbar-thumb:hover,
-.preview-content:hover::-webkit-scrollbar-thumb:hover {
+
+.editor-textarea.is-scrolling::-webkit-scrollbar-thumb:hover,
+.preview-content.is-scrolling::-webkit-scrollbar-thumb:hover {
   background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Firefox / Gecko (no-op in Tauri's WebKit/WebView2, but kept for parity). */
 * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-.editor-pane:hover,
-.preview-pane:hover,
-.preview-content:hover { scrollbar-color: var(--scrollbar-thumb) transparent; }
+.editor-textarea.is-scrolling,
+.preview-content.is-scrolling { scrollbar-color: var(--scrollbar-thumb) transparent; }
 </style>

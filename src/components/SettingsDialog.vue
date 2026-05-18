@@ -57,6 +57,32 @@
             </div>
           </div>
 
+          <div class="settings-section">
+            <span class="section-label">Color scheme</span>
+            <div class="scheme-grid">
+              <button
+                v-for="scheme in COLOR_SCHEMES"
+                :key="scheme.id"
+                class="scheme-swatch"
+                :class="{ selected: settingsStore.colorScheme === scheme.id }"
+                :title="scheme.label"
+                :style="{
+                  '--sl': scheme.light.bgColor,
+                  '--sd': scheme.dark.bgColor,
+                  '--sa': scheme.light.accentColor,
+                }"
+                @click="settingsStore.setColorScheme(scheme.id)"
+              >
+                <div class="swatch-halves">
+                  <div class="swatch-h light-h"></div>
+                  <div class="swatch-h dark-h"></div>
+                </div>
+                <div class="swatch-accent"></div>
+                <span class="swatch-name">{{ scheme.label }}</span>
+              </button>
+            </div>
+          </div>
+
           <div class="settings-preview">
             <div class="sample" :style="{ fontFamily: settingsStore.editorFont, fontSize: settingsStore.fontSize + 'px' }">
               Editor: const greet = () =&gt; "Hello, world";
@@ -81,6 +107,7 @@ import {
   FONT_SIZE_MIN,
   FONT_SIZE_MAX,
 } from '../stores/settings';
+import { COLOR_SCHEMES } from '../themes';
 
 const settingsStore = useSettingsStore();
 
@@ -267,6 +294,77 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
 .sample {
   color: var(--text-color);
   line-height: 1.5;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.section-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.scheme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  overflow: hidden;
+  padding: 0;
+  background: none;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.scheme-swatch:hover {
+  transform: scale(1.04);
+}
+
+.scheme-swatch.selected {
+  border-color: var(--accent-color);
+}
+
+.swatch-halves {
+  display: flex;
+  height: 32px;
+}
+
+.swatch-h.light-h {
+  flex: 1;
+  background: var(--sl);
+}
+
+.swatch-h.dark-h {
+  flex: 1;
+  background: var(--sd);
+}
+
+.swatch-accent {
+  height: 3px;
+  background: var(--sa);
+}
+
+.swatch-name {
+  font-size: 0.5625rem;
+  text-align: center;
+  padding: 3px 2px;
+  color: var(--text-color);
+  background: var(--bg-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .fade-enter-active,

@@ -20,6 +20,12 @@ function scrollPercentage(el: { scrollTop: number; scrollHeight: number; clientH
   return max > 0 ? el.scrollTop / max : 0;
 }
 
+// Skip the sync if the target pane is already within this many pixels of
+// where it would go. The `isSyncing` rAF lock can race with delayed scroll
+// events in WKWebView, letting sub-pixel rounding drift feed back through
+// the bidirectional link — this threshold breaks that loop.
+const SYNC_THRESHOLD_PX = 1;
+
 export function useMarkdownPreview() {
   return {
     setEditorElement(el: HTMLTextAreaElement | null) { editorEl = el; },
@@ -31,7 +37,9 @@ export function useMarkdownPreview() {
       if (!previewEl || isSyncing) return;
       const pct = scrollPercentage(editorEl ?? { scrollTop: 0, scrollHeight: 0, clientHeight: 0 });
       const max = previewEl.scrollHeight - previewEl.clientHeight;
-      withSyncLock(() => { previewEl!.scrollTop = pct * max; });
+      const target = pct * max;
+      if (Math.abs(previewEl.scrollTop - target) < SYNC_THRESHOLD_PX) return;
+      withSyncLock(() => { previewEl!.scrollTop = target; });
     },
 
     /** Preview → Editor sync. Called from the preview's scroll handler. */
@@ -39,7 +47,9 @@ export function useMarkdownPreview() {
       if (!editorEl || !previewEl || isSyncing) return;
       const pct = scrollPercentage(previewEl);
       const max = editorEl.scrollHeight - editorEl.clientHeight;
-      withSyncLock(() => { editorEl!.scrollTop = pct * max; });
+      const target = pct * max;
+      if (Math.abs(editorEl.scrollTop - target) < SYNC_THRESHOLD_PX) return;
+      withSyncLock(() => { editorEl!.scrollTop = target; });
     },
   };
 }

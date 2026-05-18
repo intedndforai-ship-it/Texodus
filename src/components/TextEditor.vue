@@ -40,10 +40,21 @@ const handleKeydown = async (e) => {
   el.setSelectionRange(start + 2, start + 2);
 };
 
-const handleScroll = () => syncFromEditor();
+const SCROLL_HIDE_DELAY = 1200;
+let scrollHideTimer = null;
+const handleScroll = (e) => {
+  syncFromEditor();
+  const el = e.currentTarget;
+  el.classList.add('is-scrolling');
+  clearTimeout(scrollHideTimer);
+  scrollHideTimer = setTimeout(() => el.classList.remove('is-scrolling'), SCROLL_HIDE_DELAY);
+};
 
 onMounted(() => setEditorElement(editorRef.value));
-onUnmounted(() => setEditorElement(null));
+onUnmounted(() => {
+  setEditorElement(null);
+  clearTimeout(scrollHideTimer);
+});
 
 // Expose ref for legacy callers (e.g. Toolbar via App.vue)
 defineExpose({ editorRef });

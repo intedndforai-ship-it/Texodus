@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia';
+import { type ColorSchemeId } from '../themes';
 
 export type LayoutMode = 'split' | 'preview' | 'focus';
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type { ColorSchemeId };
 
 // Bundled = shipped via @fontsource/* (works offline).
 // System-only = available only when the user's OS provides it; falls back
@@ -38,6 +40,7 @@ const RECENT_FILES_MAX = 10;
 interface PersistedSettings {
   layoutMode: LayoutMode;
   themeMode: ThemeMode;
+  colorScheme: ColorSchemeId;
   editorFont: string;
   previewFont: string;
   fontSize: number;
@@ -52,6 +55,7 @@ const STORAGE_KEY = 'texodus.settings.v1';
 const DEFAULTS: PersistedSettings = {
   layoutMode: 'split',
   themeMode: 'system',
+  colorScheme: 'default',
   editorFont: EDITOR_FONTS[0].value,
   previewFont: PREVIEW_FONTS[0].value,
   fontSize: 14,
@@ -75,6 +79,7 @@ export const useSettingsStore = defineStore('settings', {
   actions: {
     setLayoutMode(mode: LayoutMode) { this.layoutMode = mode; },
     setThemeMode(mode: ThemeMode) { this.themeMode = mode; },
+    setColorScheme(id: ColorSchemeId) { this.colorScheme = id; },
     setSettingsVisible(v: boolean) { this.settingsVisible = v; },
     setEditorFont(font: string) { this.editorFont = font; },
     setPreviewFont(font: string) { this.previewFont = font; },
