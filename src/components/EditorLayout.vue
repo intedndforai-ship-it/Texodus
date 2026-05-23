@@ -34,8 +34,7 @@ defineProps({
 .preview-pane {
   flex: 1;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   min-width: 0;
 }
 

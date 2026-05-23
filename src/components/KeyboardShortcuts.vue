@@ -1,24 +1,24 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue';
 import { useMarkdownPreview } from '../composables/useMarkdownPreview';
-import { applyFormat } from '../composables/useFormatting';
+import { applyFormat } from "../composables/useFormatting";
+import { useEditorStore } from "../stores/editor";
 
 const { getEditorElement } = useMarkdownPreview();
+const editorStore = useEditorStore();
 
 // File shortcuts (New / Open / Save / Save As) are owned by the native app
 // menu's accelerators — see composables/useAppMenu.ts. This handler covers
 // all 17 formatting shortcuts, and only fires while the editor textarea is focused.
 const handleKeydown = (e) => {
-  const ta = getEditorElement();
-  if (!ta || document.activeElement !== ta) return;
-
-  const isMac = navigator.userAgent.includes('Macintosh');
-  
-  // Modifiers
+  const isMac = navigator.userAgent.includes("Macintosh");
   const cmd = isMac ? e.metaKey : e.ctrlKey;
   const ctrl = e.ctrlKey;
   const shift = e.shiftKey;
   const alt = e.altKey;
+
+  const ta = getEditorElement();
+  if (!ta || document.activeElement !== ta) return;
 
   // 1. Underline: ⌘U (Cmd+U on Mac, Ctrl+U on Windows)
   if (cmd && !shift && !alt && e.code === 'KeyU') {
@@ -146,3 +146,5 @@ const handleKeydown = (e) => {
 onMounted(() => window.addEventListener('keydown', handleKeydown));
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
 </script>
+
+<template />

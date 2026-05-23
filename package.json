@@ -1,7 +1,7 @@
 {
   "name": "texodus",
   "private": true,
-  "version": "0.6.3",
+  "version": "0.6.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,12 +24,14 @@
     "@types/dompurify": "^3.0.5",
     "dompurify": "^3.4.3",
     "marked": "^18.0.3",
+    "pdfmake": "^0.3.8",
     "pinia": "^3.0.4",
     "prismjs": "^1.30.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/pdfmake": "^0.3.3",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "^6.0.3",
     "vite": "^6.0.3",

@@ -1,5 +1,6 @@
 import { Menu, Submenu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
 import { openFile, saveFile, saveFileAs, newFile, loadFileFromPath, closeFile } from '../services/fileService';
+import { exportPdf, exportHtml, exportTxt } from "../services/exportService";
 import type { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 
@@ -74,6 +75,25 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
       text: 'Close',
       accelerator: 'CmdOrCtrl+W',
       action: () => { void closeFile(store); },
+    }),
+    await PredefinedMenuItem.new({ item: 'Separator' }),
+    await MenuItem.new({
+      id: 'file-export-pdf',
+      text: 'Export as PDF…',
+      accelerator: 'CmdOrCtrl+Shift+P',
+      action: () => { void exportPdf(store.content, store.filePath); },
+    }),
+    await MenuItem.new({
+      id: 'file-export-html',
+      text: 'Export as HTML…',
+      accelerator: 'CmdOrCtrl+Shift+H',
+      action: () => { void exportHtml(store.content, store.filePath); },
+    }),
+    await MenuItem.new({
+      id: 'file-export-txt',
+      text: 'Export as TXT…',
+      accelerator: 'CmdOrCtrl+Shift+X',
+      action: () => { void exportTxt(store.content, store.filePath); },
     }),
     await PredefinedMenuItem.new({ item: 'Separator' }),
     await MenuItem.new({
