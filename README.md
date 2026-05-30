@@ -4,6 +4,10 @@ Texodus is a modern, fast, and beautiful Markdown editor built with **Tauri 2** 
 
 ![Texodus Editor Preview](screenshots/Screenshot_01.png)
 
+## 📥 Installation
+
+Download the latest release from the [releases page](https://github.com/w512/texodus/releases). It's available for macOS, Windows, and Linux. You can also build it from source.
+
 ## ✨ Features
 
 -   **CodeMirror 6 Editor**: Modern editing experience with markdown syntax highlighting, smart indentation, and large-document performance.
