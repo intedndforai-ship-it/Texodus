@@ -2,12 +2,12 @@
   <Transition name="modal">
     <div v-if="isOpen" class="modal-backdrop" @click.self="cancel">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="unsaved-title">
-        <h2 id="unsaved-title" class="modal-title">Unsaved changes</h2>
-        <p class="modal-body">You have unsaved changes. Save them before continuing?</p>
+        <h2 id="unsaved-title" class="modal-title">{{ options.title }}</h2>
+        <p class="modal-body">{{ options.body }}</p>
         <div class="modal-actions">
-          <button ref="cancelBtn" class="btn btn-ghost" @click="cancel">Cancel</button>
-          <button class="btn btn-ghost" @click="discard">Don't Save</button>
-          <button class="btn btn-primary" @click="save">Save</button>
+          <button ref="cancelBtn" class="btn btn-ghost" @click="cancel">{{ options.cancelLabel }}</button>
+          <button class="btn btn-ghost" @click="discard">{{ options.discardLabel }}</button>
+          <button class="btn btn-primary" @click="save">{{ options.saveLabel }}</button>
         </div>
       </div>
     </div>
@@ -18,7 +18,7 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useUnsavedPromptState, resolveUnsavedPrompt } from '../composables/useUnsavedPrompt';
 
-const { isOpen } = useUnsavedPromptState();
+const { isOpen, options } = useUnsavedPromptState();
 const cancelBtn = ref<HTMLButtonElement | null>(null);
 
 const save = () => resolveUnsavedPrompt('save');

@@ -73,8 +73,19 @@ export const useEditorStore = defineStore('editor', {
     setDirty(dirty: boolean) {
       this.activeTab.isDirty = dirty;
     },
+    setTabDirty(id: string, dirty: boolean) {
+      const tab = this.tabs.find((t) => t.id === id);
+      if (tab) tab.isDirty = dirty;
+    },
     loadFile(content: string, path: string | null) {
       const tab = this.activeTab;
+      tab.content = content;
+      tab.filePath = path;
+      tab.isDirty = false;
+    },
+    loadTabFile(id: string, content: string, path: string | null) {
+      const tab = this.tabs.find((t) => t.id === id);
+      if (!tab) return;
       tab.content = content;
       tab.filePath = path;
       tab.isDirty = false;

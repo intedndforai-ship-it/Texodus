@@ -47,6 +47,7 @@ import { applyFormat } from './composables/useFormatting';
 import { setupAppMenu } from './composables/useAppMenu';
 import { useMarkdownPreview } from './composables/useMarkdownPreview';
 import { promptUnsavedChanges } from './composables/useUnsavedPrompt';
+import { useFileWatch } from './composables/useFileWatch';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { invoke } from '@tauri-apps/api/core';
@@ -55,6 +56,7 @@ import { listen } from '@tauri-apps/api/event';
 const settingsStore = useSettingsStore();
 const editorStore = useEditorStore();
 const { getEditorView } = useMarkdownPreview();
+useFileWatch(editorStore);
 
 const handleFormat = (format: string) => applyFormat(format, getEditorView());
 
