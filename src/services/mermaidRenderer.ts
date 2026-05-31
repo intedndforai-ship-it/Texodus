@@ -57,14 +57,33 @@ export async function renderMermaidSvg(
   return svg;
 }
 
-function buildErrorBlock(err: unknown): HTMLElement {
+function buildErrorBlock(err: unknown, code: string): HTMLElement {
   const container = document.createElement('div');
   container.className = 'mermaid-error-container';
 
+  const header = document.createElement('div');
+  header.className = 'mermaid-error-header';
+  container.appendChild(header);
+
   const title = document.createElement('div');
   title.className = 'mermaid-error-title';
-  title.textContent = 'Mermaid Rendering Error';
-  container.appendChild(title);
+  title.textContent = 'Mermaid diagram failed to render';
+  header.appendChild(title);
+
+  const copyButton = document.createElement('button');
+  copyButton.className = 'mermaid-action-button';
+  copyButton.type = 'button';
+  copyButton.textContent = 'Copy source';
+  copyButton.addEventListener('click', async () => {
+    await copyText(code);
+    brieflySetButtonText(copyButton, 'Copied');
+  });
+  header.appendChild(copyButton);
+
+  const hint = document.createElement('div');
+  hint.className = 'mermaid-error-hint';
+  hint.textContent = 'Check the diagram syntax below and try again.';
+  container.appendChild(hint);
 
   const text = document.createElement('pre');
   text.className = 'mermaid-error-text';
@@ -72,6 +91,162 @@ function buildErrorBlock(err: unknown): HTMLElement {
   container.appendChild(text);
 
   return container;
+}
+
+function buildDiagramBlock(svg: string): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'mermaid-preview-container';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'mermaid-toolbar';
+  container.appendChild(toolbar);
+
+  const viewport = document.createElement('div');
+  viewport.className = 'mermaid-viewport';
+  container.appendChild(viewport);
+
+  const canvas = document.createElement('div');
+  canvas.className = 'mermaid-canvas';
+  canvas.innerHTML = svg;
+  viewport.appendChild(canvas);
+
+  const state = { scale: 1 };
+  const setScale = (scale: number) => {
+    state.scale = Math.max(0.5, Math.min(3, Math.round(scale * 100) / 100));
+    canvas.style.transform = `scale(${state.scale})`;
+    canvas.style.width = `${state.scale * 100}%`;
+    canvas.style.height = `${state.scale * 100}%`;
+    zoomLabel.textContent = `${Math.round(state.scale * 100)}%`;
+  };
+
+  const copySvg = makeToolbarButton('Copy SVG', async (button) => {
+    await copyText(svg);
+    brieflySetButtonText(button, 'Copied');
+  });
+  toolbar.appendChild(copySvg);
+
+  const copyPng = makeToolbarButton('Copy PNG', async (button) => {
+    await copySvgAsPng(svg);
+    brieflySetButtonText(button, 'Copied');
+  });
+  toolbar.appendChild(copyPng);
+
+  const spacer = document.createElement('span');
+  spacer.className = 'mermaid-toolbar-spacer';
+  toolbar.appendChild(spacer);
+
+  toolbar.appendChild(makeToolbarButton('−', () => setScale(state.scale - 0.1), 'Zoom out'));
+
+  const zoomLabel = document.createElement('span');
+  zoomLabel.className = 'mermaid-zoom-label';
+  zoomLabel.textContent = '100%';
+  toolbar.appendChild(zoomLabel);
+
+  toolbar.appendChild(makeToolbarButton('+', () => setScale(state.scale + 0.1), 'Zoom in'));
+  toolbar.appendChild(makeToolbarButton('Reset', () => setScale(1), 'Reset zoom'));
+
+  enableDragPan(viewport);
+  setScale(1);
+
+  return container;
+}
+
+function makeToolbarButton(
+  text: string,
+  action: (button: HTMLButtonElement) => void | Promise<void>,
+  title = text,
+): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.className = 'mermaid-action-button';
+  button.type = 'button';
+  button.title = title;
+  button.textContent = text;
+  button.addEventListener('click', () => {
+    void Promise.resolve(action(button)).catch((err) => {
+      console.error('Mermaid toolbar action failed:', err);
+      brieflySetButtonText(button, 'Failed');
+    });
+  });
+  return button;
+}
+
+function brieflySetButtonText(button: HTMLButtonElement, text: string): void {
+  const previous = button.textContent ?? '';
+  button.textContent = text;
+  setTimeout(() => { button.textContent = previous; }, 1200);
+}
+
+async function copyText(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text);
+}
+
+async function copySvgAsPng(svg: string): Promise<void> {
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    const loaded = new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to rasterize Mermaid SVG'));
+    });
+    img.src = url;
+    await loaded;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, img.naturalWidth || img.width);
+    canvas.height = Math.max(1, img.naturalHeight || img.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas is not available');
+    ctx.drawImage(img, 0, 0);
+
+    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((result) => result ? resolve(result) : reject(new Error('Failed to create PNG')), 'image/png');
+    });
+
+    if (!('ClipboardItem' in window) || !navigator.clipboard.write) {
+      throw new Error('PNG clipboard is not supported in this WebView');
+    }
+
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': pngBlob }),
+    ]);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function enableDragPan(viewport: HTMLElement): void {
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  viewport.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    isDragging = true;
+    startX = event.clientX;
+    startY = event.clientY;
+    startLeft = viewport.scrollLeft;
+    startTop = viewport.scrollTop;
+    viewport.classList.add('is-dragging');
+    viewport.setPointerCapture(event.pointerId);
+  });
+
+  viewport.addEventListener('pointermove', (event) => {
+    if (!isDragging) return;
+    viewport.scrollLeft = startLeft - (event.clientX - startX);
+    viewport.scrollTop = startTop - (event.clientY - startY);
+  });
+
+  const stop = (event: PointerEvent) => {
+    if (!isDragging) return;
+    isDragging = false;
+    viewport.classList.remove('is-dragging');
+    if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+  };
+  viewport.addEventListener('pointerup', stop);
+  viewport.addEventListener('pointercancel', stop);
 }
 
 export async function renderMermaidBlocks(
@@ -102,13 +277,10 @@ export async function renderMermaidBlocks(
 
     try {
       const { svg } = await mermaid.render(id, code);
-      const svgContainer = document.createElement('div');
-      svgContainer.className = 'mermaid-preview-container';
-      svgContainer.innerHTML = svg;
-      pre.replaceWith(svgContainer);
+      pre.replaceWith(buildDiagramBlock(svg));
     } catch (err) {
       console.error('Mermaid render error:', err);
-      pre.replaceWith(buildErrorBlock(err));
+      pre.replaceWith(buildErrorBlock(err, code));
       // Mermaid leaves a temp render node behind on failure
       const tempEl = document.getElementById(id);
       if (tempEl) tempEl.remove();

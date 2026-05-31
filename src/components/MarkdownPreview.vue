@@ -382,18 +382,77 @@ onUnmounted(() => {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 1.5rem;
   margin: 1.5em 0;
+  overflow: hidden;
+}
+
+:deep(.mermaid-toolbar) {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+
+:deep(.mermaid-toolbar-spacer) {
+  flex: 1;
+}
+
+:deep(.mermaid-action-button) {
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:deep(.mermaid-action-button:hover) {
+  background: var(--btn-hover);
+  color: var(--accent-color);
+}
+
+:deep(.mermaid-zoom-label) {
+  min-width: 3rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+:deep(.mermaid-viewport) {
+  min-height: 220px;
+  max-height: 70vh;
+  padding: 1.5rem;
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow-x: auto;
+  overflow: auto;
+  cursor: grab;
+}
+
+:deep(.mermaid-viewport.is-dragging) {
+  cursor: grabbing;
+  user-select: none;
+}
+
+:deep(.mermaid-canvas) {
+  transform-origin: center center;
+  transition: transform 0.12s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 :deep(.mermaid-preview-container svg) {
   max-width: 100%;
   height: auto;
   display: block;
+  flex: 0 0 auto;
 }
 
 :deep(.mermaid-error-container) {
@@ -406,14 +465,24 @@ onUnmounted(() => {
   font-family: inherit;
 }
 
-:deep(.mermaid-error-title) {
-  font-weight: 600;
-  color: #ef4444;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
+:deep(.mermaid-error-header) {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+:deep(.mermaid-error-title) {
+  font-weight: 700;
+  color: #ef4444;
+  font-size: 0.95rem;
+}
+
+:deep(.mermaid-error-hint) {
+  margin-bottom: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
 }
 
 :deep(.mermaid-error-text) {
