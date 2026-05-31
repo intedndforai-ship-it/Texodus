@@ -1,0 +1,132 @@
+<template>
+  <li class="sidebar-node">
+    <button
+      class="sidebar-node__button"
+      :class="{ 'sidebar-node__button--selected': node.path === selectedPath }"
+      type="button"
+      @click="handleClick"
+    >
+      <span
+        v-if="node.kind === 'directory'"
+        class="sidebar-node__chevron"
+        :style="{ '--icon': `url(${isExpanded ? iconExpandArrow : iconForward})` }"
+        aria-hidden="true"
+      ></span>
+      <span v-else class="sidebar-node__spacer"></span>
+      <span
+        class="sidebar-node__icon"
+        :style="{ '--icon': `url(${node.kind === 'directory' ? iconFolder : iconDocument})` }"
+        aria-hidden="true"
+      ></span>
+      <span class="sidebar-node__name" :title="node.path">{{ node.name }}</span>
+    </button>
+
+    <ul v-if="node.kind === 'directory' && isExpanded" class="sidebar-node__children">
+      <SidebarNode
+        v-for="child in node.children"
+        :key="child.path"
+        :node="child"
+        :selected-path="selectedPath"
+        :expanded-paths="expandedPaths"
+        @open-file="$emit('open-file', $event)"
+        @toggle-directory="$emit('toggle-directory', $event)"
+      />
+    </ul>
+  </li>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+import { type FileTreeNode } from '../stores/workspace';
+import iconFolder from '../assets/icons/icons8-folder-100.png';
+import iconDocument from '../assets/icons/icons8-document-100.png';
+import iconForward from '../assets/icons/icons8-forward-100.png';
+import iconExpandArrow from '../assets/icons/icons8-expand-arrow-100.png';
+
+const props = defineProps<{
+  node: FileTreeNode;
+  selectedPath: string | null;
+  expandedPaths: string[];
+}>();
+
+const emit = defineEmits<{
+  'open-file': [path: string];
+  'toggle-directory': [path: string];
+}>();
+
+const isExpanded = computed(() => props.expandedPaths.includes(props.node.path));
+
+function handleClick() {
+  if (props.node.kind === 'directory') {
+    emit('toggle-directory', props.node.path);
+  } else {
+    emit('open-file', props.node.path);
+  }
+}
+</script>
+
+<style scoped>
+.sidebar-node {
+  list-style: none;
+}
+
+.sidebar-node__button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.7rem;
+  padding: 0.2rem 0.45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-node__button:hover {
+  background: var(--btn-hover);
+}
+
+.sidebar-node__button--selected {
+  background: var(--accent-subtle);
+  color: var(--accent-color);
+}
+
+.sidebar-node__chevron,
+.sidebar-node__spacer {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 0.8rem;
+}
+
+.sidebar-node__chevron {
+  background-color: var(--text-muted);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.sidebar-node__icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 0.95rem;
+  background-color: var(--text-muted);
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.sidebar-node__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-node__children {
+  margin: 0;
+  padding: 0 0 0 0.85rem;
+}
+</style>

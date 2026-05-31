@@ -10,6 +10,16 @@
     <div class="titlebar-controls">
       <FormatMenu @format="$emit('format', $event)" />
 
+      <button
+        id="btn-sidebar"
+        class="tb-btn icon-only"
+        :class="{ active: sidebarVisible }"
+        :title="sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'"
+        @click="$emit('toggle-sidebar')"
+      >
+        <span class="tb-icon" :style="{ '--icon': `url(${iconSidebar})` }"></span>
+      </button>
+
       <div class="layout-switcher">
         <button
           v-for="mode in layoutModes"
@@ -49,14 +59,16 @@ import iconLayoutPreview from '../assets/icons/icons8-preview-100.png';
 import iconThemeSystem from '../assets/icons/icons8-operating-system-100.png';
 import iconThemeLight from '../assets/icons/icons8-sun-100.png';
 import iconThemeDark from '../assets/icons/icons8-do-not-disturb-ios-100.png';
+import iconSidebar from '../assets/icons/icons8-sidebar-100.png';
 
 const props = defineProps({
   layoutMode: String,
   themeMode: String,
+  sidebarVisible: Boolean,
   title: { type: String, default: 'Texodus' },
 });
 
-defineEmits(['toggle-layout', 'cycle-theme', 'format']);
+defineEmits(['toggle-layout', 'toggle-sidebar', 'cycle-theme', 'format']);
 
 const layoutModes = [
   { value: 'split', label: 'Split View', icon: iconLayoutSplit },

@@ -12,6 +12,10 @@
     "opener:default",
     "fs:default",
     "fs:allow-stat",
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "**" }]
+    },
     "fs:allow-watch",
     "fs:allow-unwatch",
     {

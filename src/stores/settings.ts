@@ -47,6 +47,7 @@ interface PersistedSettings {
   fontSize: number;
   recentFiles: string[];
   documentMode: DocumentMode;
+  sidebarVisible: boolean;
 }
 
 interface SettingsState extends PersistedSettings {
@@ -64,6 +65,7 @@ const DEFAULTS: PersistedSettings = {
   fontSize: 14,
   recentFiles: [],
   documentMode: 'windows',
+  sidebarVisible: true,
 };
 
 function loadFromStorage(): SettingsState {
@@ -86,6 +88,8 @@ export const useSettingsStore = defineStore('settings', {
     setThemeMode(mode: ThemeMode) { this.themeMode = mode; },
     setColorScheme(id: ColorSchemeId) { this.colorScheme = id; },
     setDocumentMode(mode: DocumentMode) { this.documentMode = mode; },
+    setSidebarVisible(v: boolean) { this.sidebarVisible = v; },
+    toggleSidebar() { this.sidebarVisible = !this.sidebarVisible; },
     setSettingsVisible(v: boolean) { this.settingsVisible = v; },
     setAboutVisible(v: boolean) { this.aboutVisible = v; },
     setEditorFont(font: string) { this.editorFont = font; },

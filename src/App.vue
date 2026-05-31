@@ -5,16 +5,23 @@
       <TitleBar
         :layoutMode="settingsStore.layoutMode"
         :themeMode="settingsStore.themeMode"
+        :sidebarVisible="settingsStore.sidebarVisible"
         :title="windowTitle"
         @toggle-layout="settingsStore.setLayoutMode($event)"
+        @toggle-sidebar="settingsStore.toggleSidebar()"
         @cycle-theme="settingsStore.cycleTheme()"
         @format="handleFormat"
       />
       <TabBar />
-      <EditorLayout :layoutMode="settingsStore.layoutMode">
-        <template #editor><TextEditor /></template>
-        <template #preview><MarkdownPreview /></template>
-      </EditorLayout>
+      <div class="app-main">
+        <Transition name="sidebar-slide">
+          <Sidebar v-if="settingsStore.sidebarVisible" />
+        </Transition>
+        <EditorLayout :layoutMode="settingsStore.layoutMode">
+          <template #editor><TextEditor /></template>
+          <template #preview><MarkdownPreview /></template>
+        </EditorLayout>
+      </div>
     </div>
     <UnsavedChangesDialog />
     <AboutDialog />
@@ -28,6 +35,7 @@ import { useSettingsStore } from './stores/settings';
 import { useEditorStore } from './stores/editor';
 import TitleBar from './components/TitleBar.vue';
 import TabBar from './components/TabBar.vue';
+import Sidebar from './components/Sidebar.vue';
 import EditorLayout from './components/EditorLayout.vue';
 import TextEditor from './components/TextEditor.vue';
 import MarkdownPreview from './components/MarkdownPreview.vue';
@@ -240,6 +248,26 @@ onUnmounted(() => {
   width: 100vw;
   overflow: hidden;
   background: var(--bg-color);
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: width 0.18s ease, min-width 0.18s ease, opacity 0.18s ease;
+}
+
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
 }
 
 </style>
