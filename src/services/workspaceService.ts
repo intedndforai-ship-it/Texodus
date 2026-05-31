@@ -48,6 +48,25 @@ export async function loadWorkspaceDirectoryChildren(directoryPath: string): Pro
   }
 }
 
+async function reloadExpandedDirectories(rootPath: string): Promise<void> {
+  const workspaceStore = useWorkspaceStore();
+  const normalizedRoot = normalizePath(rootPath);
+  const expanded = workspaceStore.expandedPaths
+    .filter((path) => {
+      const normalized = normalizePath(path);
+      return normalized !== normalizedRoot && isPathInsideWorkspace(path, rootPath);
+    })
+    .sort((a, b) => pathDepth(a) - pathDepth(b));
+
+  for (const path of expanded) {
+    await loadWorkspaceDirectoryChildren(path);
+  }
+}
+
+function pathDepth(path: string): number {
+  return normalizePath(path).split('/').filter(Boolean).length;
+}
+
 export async function refreshWorkspaceTree(rootPath?: string): Promise<void> {
   const workspaceStore = useWorkspaceStore();
   const path = rootPath ?? workspaceStore.rootPath;
@@ -58,6 +77,7 @@ export async function refreshWorkspaceTree(rootPath?: string): Promise<void> {
   try {
     const tree = await loadWorkspaceTree(path);
     workspaceStore.setWorkspace(path, tree);
+    await reloadExpandedDirectories(path);
   } catch (e) {
     workspaceStore.setError(e instanceof Error ? e.message : String(e));
   } finally {
@@ -75,7 +95,7 @@ export async function refreshWorkspaceTreeIfPathInside(filePath: string): Promis
   workspaceStore.setSelectedPath(filePath);
 }
 
-async function expandAndLoadParentDirectories(filePath: string, rootPath: string): Promise<void> {
+export async function expandAndLoadParentDirectories(filePath: string, rootPath: string): Promise<void> {
   const workspaceStore = useWorkspaceStore();
   const parentDirs = getParentDirectoriesInsideWorkspace(filePath, rootPath);
 

@@ -5,6 +5,7 @@
       :class="{ 'sidebar-node__button--selected': node.path === selectedPath }"
       type="button"
       @click="handleClick"
+      @contextmenu.prevent.stop="emit('node-context-menu', node, $event)"
     >
       <span
         v-if="node.kind === 'directory'"
@@ -31,6 +32,7 @@
         :expanded-paths="expandedPaths"
         @open-file="$emit('open-file', $event)"
         @toggle-directory="$emit('toggle-directory', $event)"
+        @node-context-menu="(childNode, event) => $emit('node-context-menu', childNode, event)"
       />
     </ul>
   </li>
@@ -54,6 +56,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'open-file': [path: string];
   'toggle-directory': [path: string];
+  'node-context-menu': [node: FileTreeNode, event: MouseEvent];
 }>();
 
 const isExpanded = computed(() => props.expandedPaths.includes(props.node.path));

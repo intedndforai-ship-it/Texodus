@@ -42,10 +42,16 @@ export const useWorkspaceStore = defineStore('workspace', {
   },
   actions: {
     setWorkspace(rootPath: string, tree: FileTreeNode[]) {
+      const isSameWorkspace = this.rootPath === rootPath;
       this.rootPath = rootPath;
       this.tree = tree;
       this.error = null;
-      if (!this.expandedPaths.includes(rootPath)) this.expandedPaths.push(rootPath);
+
+      if (!isSameWorkspace) {
+        this.expandedPaths = [rootPath];
+      } else if (!this.expandedPaths.includes(rootPath)) {
+        this.expandedPaths.push(rootPath);
+      }
     },
     setTree(tree: FileTreeNode[]) {
       this.tree = tree;
@@ -72,6 +78,24 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
     expandPath(path: string) {
       if (!this.expandedPaths.includes(path)) this.expandedPaths.push(path);
+    },
+    removeExpandedPathPrefix(path: string) {
+      const prefix = `${path.replace(/\\/g, '/')}/`;
+      this.expandedPaths = this.expandedPaths.filter((p) => {
+        const normalized = p.replace(/\\/g, '/');
+        return normalized !== path.replace(/\\/g, '/') && !normalized.startsWith(prefix);
+      });
+    },
+    replaceExpandedPathPrefix(oldPath: string, newPath: string) {
+      const oldNormalized = oldPath.replace(/\\/g, '/');
+      const newNormalized = newPath.replace(/\\/g, '/');
+      const oldPrefix = `${oldNormalized}/`;
+      this.expandedPaths = this.expandedPaths.map((p) => {
+        const normalized = p.replace(/\\/g, '/');
+        if (normalized === oldNormalized) return newPath;
+        if (normalized.startsWith(oldPrefix)) return newNormalized + normalized.slice(oldNormalized.length);
+        return p;
+      });
     },
     reset() {
       this.rootPath = null;
