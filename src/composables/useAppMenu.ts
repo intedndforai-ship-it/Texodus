@@ -9,6 +9,7 @@ import {
   requestCloseDocument,
 } from '../services/fileService';
 import { exportPdf, exportHtml, exportTxt } from "../services/exportService";
+import { openWorkspaceFolder } from '../services/workspaceService';
 import type { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { invoke } from '@tauri-apps/api/core';
@@ -96,6 +97,12 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
       accelerator: 'CmdOrCtrl+O',
       action: () => { void requestOpenDocument(store); },
     }),
+    await MenuItem.new({
+      id: 'file-open-folder',
+      text: 'Open Folder…',
+      accelerator: 'CmdOrCtrl+Shift+O',
+      action: () => { void openWorkspaceFolder(); },
+    }),
     openRecentSubmenu,
     await MenuItem.new({
       id: 'file-close',
@@ -178,6 +185,18 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
     ],
   });
 
+  const viewSubmenu = await Submenu.new({
+    text: 'View',
+    items: [
+      await MenuItem.new({
+        id: 'view-toggle-sidebar',
+        text: 'Toggle Sidebar',
+        accelerator: 'CmdOrCtrl+Alt+B',
+        action: () => { settingsStore.toggleSidebar(); },
+      }),
+    ],
+  });
+
   const helpSubmenu = await Submenu.new({
     text: 'Help',
     items: [
@@ -211,7 +230,7 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
     }));
   }
 
-  submenus.push(fileSubmenu, editSubmenu, helpSubmenu);
+  submenus.push(fileSubmenu, editSubmenu, viewSubmenu, helpSubmenu);
 
   const menu = await Menu.new({ items: submenus });
   activeMenu = menu; // Prevent GC

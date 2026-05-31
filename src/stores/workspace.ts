@@ -4,6 +4,7 @@ export interface FileTreeNode {
   name: string;
   path: string;
   kind: 'file' | 'directory';
+  /** Undefined means directory children are not loaded yet. */
   children?: FileTreeNode[];
 }
 
@@ -14,6 +15,17 @@ interface WorkspaceState {
   selectedPath: string | null;
   isLoading: boolean;
   error: string | null;
+}
+
+function findNode(nodes: FileTreeNode[], path: string): FileTreeNode | null {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    if (node.kind === 'directory' && node.children) {
+      const found = findNode(node.children, path);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 export const useWorkspaceStore = defineStore('workspace', {
@@ -37,6 +49,10 @@ export const useWorkspaceStore = defineStore('workspace', {
     },
     setTree(tree: FileTreeNode[]) {
       this.tree = tree;
+    },
+    setDirectoryChildren(path: string, children: FileTreeNode[]) {
+      const node = findNode(this.tree, path);
+      if (node && node.kind === 'directory') node.children = children;
     },
     setSelectedPath(path: string | null) {
       this.selectedPath = path;

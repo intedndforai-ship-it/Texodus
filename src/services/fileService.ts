@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
+import { refreshWorkspaceTreeIfPathInside } from './workspaceService';
 import { basename } from '../utils/path';
 
 const FILE_FILTERS =[{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
@@ -82,6 +83,7 @@ export async function saveFileAs(store: EditorStore): Promise<boolean> {
     store.setDirty(false);
     useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
+    await refreshWorkspaceTreeIfPathInside(path);
     showToast('File saved');
     return true;
   } catch (e) {

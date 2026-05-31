@@ -15,13 +15,14 @@
       <span v-else class="sidebar-node__spacer"></span>
       <span
         class="sidebar-node__icon"
-        :style="{ '--icon': `url(${node.kind === 'directory' ? iconFolder : iconDocument})` }"
+        :style="{ '--icon': `url(${node.kind === 'directory' ? (isExpanded ? iconOpenFolder : iconFolder) : iconDocument})` }"
         aria-hidden="true"
       ></span>
       <span class="sidebar-node__name" :title="node.path">{{ node.name }}</span>
     </button>
 
     <ul v-if="node.kind === 'directory' && isExpanded" class="sidebar-node__children">
+      <li v-if="node.children?.length === 0" class="sidebar-node__empty">Empty</li>
       <SidebarNode
         v-for="child in node.children"
         :key="child.path"
@@ -40,6 +41,7 @@ import { computed } from 'vue';
 import { type FileTreeNode } from '../stores/workspace';
 import iconFolder from '../assets/icons/icons8-folder-100.png';
 import iconDocument from '../assets/icons/icons8-document-100.png';
+import iconOpenFolder from '../assets/icons/icons8-open-file-100.png';
 import iconForward from '../assets/icons/icons8-forward-100.png';
 import iconExpandArrow from '../assets/icons/icons8-expand-arrow-100.png';
 
@@ -128,5 +130,13 @@ function handleClick() {
 .sidebar-node__children {
   margin: 0;
   padding: 0 0 0 0.85rem;
+}
+
+.sidebar-node__empty {
+  list-style: none;
+  padding: 0.25rem 0.45rem 0.25rem 1.95rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-style: italic;
 }
 </style>

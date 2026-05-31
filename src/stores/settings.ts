@@ -48,6 +48,8 @@ interface PersistedSettings {
   recentFiles: string[];
   documentMode: DocumentMode;
   sidebarVisible: boolean;
+  sidebarWidth: number;
+  lastWorkspacePath: string | null;
 }
 
 interface SettingsState extends PersistedSettings {
@@ -66,6 +68,8 @@ const DEFAULTS: PersistedSettings = {
   recentFiles: [],
   documentMode: 'windows',
   sidebarVisible: true,
+  sidebarWidth: 260,
+  lastWorkspacePath: null,
 };
 
 function loadFromStorage(): SettingsState {
@@ -90,6 +94,10 @@ export const useSettingsStore = defineStore('settings', {
     setDocumentMode(mode: DocumentMode) { this.documentMode = mode; },
     setSidebarVisible(v: boolean) { this.sidebarVisible = v; },
     toggleSidebar() { this.sidebarVisible = !this.sidebarVisible; },
+    setSidebarWidth(width: number) {
+      this.sidebarWidth = Math.max(220, Math.min(420, Math.round(width)));
+    },
+    setLastWorkspacePath(path: string | null) { this.lastWorkspacePath = path; },
     setSettingsVisible(v: boolean) { this.settingsVisible = v; },
     setAboutVisible(v: boolean) { this.aboutVisible = v; },
     setEditorFont(font: string) { this.editorFont = font; },

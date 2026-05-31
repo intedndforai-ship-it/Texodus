@@ -14,7 +14,7 @@
         id="btn-sidebar"
         class="tb-btn icon-only"
         :class="{ active: sidebarVisible }"
-        :title="sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'"
+        :title="sidebarVisible ? 'Hide Sidebar (Cmd/Ctrl+Alt+B)' : 'Show Sidebar (Cmd/Ctrl+Alt+B)'"
         @click="$emit('toggle-sidebar')"
       >
         <span class="tb-icon" :style="{ '--icon': `url(${iconSidebar})` }"></span>

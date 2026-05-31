@@ -15,7 +15,18 @@
       <TabBar />
       <div class="app-main">
         <Transition name="sidebar-slide">
-          <Sidebar v-if="settingsStore.sidebarVisible" />
+          <div
+            v-if="settingsStore.sidebarVisible"
+            class="sidebar-shell"
+            :style="{ width: `${settingsStore.sidebarWidth}px` }"
+          >
+            <Sidebar />
+            <div
+              class="sidebar-resizer"
+              title="Resize sidebar"
+              @pointerdown="startSidebarResize"
+            ></div>
+          </div>
         </Transition>
         <EditorLayout :layoutMode="settingsStore.layoutMode">
           <template #editor><TextEditor /></template>
@@ -67,6 +78,39 @@ const { getEditorView } = useMarkdownPreview();
 useFileWatch(editorStore);
 
 const handleFormat = (format: string) => applyFormat(format, getEditorView());
+
+// ── Resizable sidebar ─────────────────────────────────────────────────────────
+
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 420;
+let sidebarResizeStartX = 0;
+let sidebarResizeStartWidth = 0;
+let sidebarResizePointerId: number | null = null;
+
+function startSidebarResize(event: PointerEvent) {
+  sidebarResizeStartX = event.clientX;
+  sidebarResizeStartWidth = settingsStore.sidebarWidth;
+  sidebarResizePointerId = event.pointerId;
+  document.body.classList.add('is-resizing-sidebar');
+  window.addEventListener('pointermove', handleSidebarResize);
+  window.addEventListener('pointerup', stopSidebarResize, { once: true });
+  window.addEventListener('pointercancel', stopSidebarResize, { once: true });
+}
+
+function handleSidebarResize(event: PointerEvent) {
+  if (sidebarResizePointerId !== null && event.pointerId !== sidebarResizePointerId) return;
+  const nextWidth = Math.max(
+    SIDEBAR_MIN_WIDTH,
+    Math.min(SIDEBAR_MAX_WIDTH, sidebarResizeStartWidth + event.clientX - sidebarResizeStartX),
+  );
+  settingsStore.setSidebarWidth(nextWidth);
+}
+
+function stopSidebarResize() {
+  sidebarResizePointerId = null;
+  document.body.classList.remove('is-resizing-sidebar');
+  window.removeEventListener('pointermove', handleSidebarResize);
+} 
 
 // ── Rebuild native menu on inputs that affect its structure ──────────────────
 // Recent-files list, current tab count (Close vs Close Tab label), and the
@@ -256,6 +300,45 @@ onUnmounted(() => {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+.sidebar-shell {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 220px;
+  max-width: 420px;
+  height: 100%;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 1px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resizer:hover::after,
+body.is-resizing-sidebar .sidebar-resizer::after {
+  background: var(--accent-color);
+}
+
+body.is-resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .sidebar-slide-enter-active,
