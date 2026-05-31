@@ -3757,7 +3757,7 @@ dependencies = [
 
 [[package]]
 name = "texodus"
-version = "1.0.1"
+version = "2.0.1"
 dependencies = [
  "serde",
  "serde_json",
