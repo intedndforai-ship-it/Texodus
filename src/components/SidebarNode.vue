@@ -2,10 +2,18 @@
   <li class="sidebar-node">
     <button
       class="sidebar-node__button"
-      :class="{ 'sidebar-node__button--selected': node.path === selectedPath }"
+      :class="{
+        'sidebar-node__button--selected': node.path === selectedPath,
+        'sidebar-node__button--dragging': node.path === draggingPath,
+        'sidebar-node__button--drop-target': node.path === dropTargetPath && canDropHere,
+        'sidebar-node__button--drop-invalid': node.path === dropTargetPath && !canDropHere,
+      }"
       type="button"
+      :data-sidebar-path="node.path"
+      :data-sidebar-kind="node.kind"
       @click="handleClick"
       @contextmenu.prevent.stop="emit('node-context-menu', node, $event)"
+      @pointerdown.left.stop="emit('node-pointer-down', node, $event)"
     >
       <span
         v-if="node.kind === 'directory'"
@@ -30,9 +38,12 @@
         :node="child"
         :selected-path="selectedPath"
         :expanded-paths="expandedPaths"
+        :dragging-path="draggingPath"
+        :drop-target-path="dropTargetPath"
         @open-file="$emit('open-file', $event)"
         @toggle-directory="$emit('toggle-directory', $event)"
         @node-context-menu="(childNode, event) => $emit('node-context-menu', childNode, event)"
+        @node-pointer-down="(childNode, event) => $emit('node-pointer-down', childNode, event)"
       />
     </ul>
   </li>
@@ -51,15 +62,23 @@ const props = defineProps<{
   node: FileTreeNode;
   selectedPath: string | null;
   expandedPaths: string[];
+  draggingPath: string | null;
+  dropTargetPath: string | null;
 }>();
 
 const emit = defineEmits<{
   'open-file': [path: string];
   'toggle-directory': [path: string];
   'node-context-menu': [node: FileTreeNode, event: MouseEvent];
+  'node-pointer-down': [node: FileTreeNode, event: PointerEvent];
 }>();
 
 const isExpanded = computed(() => props.expandedPaths.includes(props.node.path));
+const canDropHere = computed(() => {
+  if (!props.draggingPath) return false;
+  if (props.node.kind !== 'directory') return false;
+  return props.draggingPath !== props.node.path && !isSameOrInside(props.node.path, props.draggingPath);
+});
 
 function handleClick() {
   if (props.node.kind === 'directory') {
@@ -67,6 +86,16 @@ function handleClick() {
   } else {
     emit('open-file', props.node.path);
   }
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function isSameOrInside(path: string, parent: string): boolean {
+  const normalizedPath = normalizePath(path);
+  const normalizedParent = normalizePath(parent);
+  return normalizedPath === normalizedParent || normalizedPath.startsWith(`${normalizedParent}/`);
 }
 </script>
 
@@ -99,6 +128,20 @@ function handleClick() {
 .sidebar-node__button--selected {
   background: var(--accent-subtle);
   color: var(--accent-color);
+}
+
+.sidebar-node__button--dragging {
+  opacity: 0.45;
+}
+
+.sidebar-node__button--drop-target {
+  background: var(--accent-subtle);
+  outline: 1px solid var(--accent-color);
+}
+
+.sidebar-node__button--drop-invalid {
+  background: rgba(208, 75, 75, 0.12);
+  outline: 1px solid #d04b4b;
 }
 
 .sidebar-node__chevron,

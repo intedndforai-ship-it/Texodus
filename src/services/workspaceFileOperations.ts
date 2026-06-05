@@ -18,6 +18,23 @@ async function ensurePathDoesNotExist(path: string): Promise<boolean> {
   }
 }
 
+async function confirmReplaceExisting(path: string): Promise<boolean> {
+  try {
+    const info = await stat(path);
+    const ok = await confirm(`Replace existing ${info.isDirectory ? 'folder' : 'file'} at:\n${path}?`, {
+      title: 'Replace existing item',
+      kind: 'warning',
+      okLabel: 'Replace',
+      cancelLabel: 'Cancel',
+    });
+    if (!ok) return false;
+    await remove(path, { recursive: info.isDirectory });
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 function targetDirectory(node: FileTreeNode): string {
   return node.kind === 'directory' ? node.path : dirname(node.path);
 }
@@ -57,16 +74,38 @@ function replaceExpandedPathPrefix(oldPath: string, newPath: string): void {
 
 async function confirmCurrentDocumentIfAffected(path: string): Promise<boolean> {
   const editorStore = useEditorStore();
-  if (!editorStore.filePath || !isSameOrInside(editorStore.filePath, path)) return true;
-  if (!editorStore.isDirty) return true;
+  const affectedDirtyTabs = editorStore.tabs.filter(
+    (tab) => tab.filePath && isSameOrInside(tab.filePath, path) && tab.isDirty,
+  );
+  if (affectedDirtyTabs.length === 0) return true;
 
-  const choice = await promptUnsavedChanges();
-  if (choice === 'cancel') return false;
-  if (choice === 'save') {
-    await writeTextFile(editorStore.filePath, editorStore.content);
-    editorStore.setDirty(false);
+  for (const tab of affectedDirtyTabs) {
+    editorStore.setActiveTab(tab.id);
+    const choice = await promptUnsavedChanges();
+    if (choice === 'cancel') return false;
+    if (choice === 'save') {
+      await writeTextFile(tab.filePath!, tab.content);
+      editorStore.setTabDirty(tab.id, false);
+    }
   }
   return true;
+}
+
+function replaceOpenDocumentPathPrefix(oldPath: string, newPath: string): void {
+  const editorStore = useEditorStore();
+  const oldNormalized = normalizePath(oldPath);
+  const newNormalized = normalizePath(newPath);
+  const oldPrefix = `${oldNormalized}/`;
+
+  for (const tab of editorStore.tabs) {
+    if (!tab.filePath) continue;
+    const normalized = normalizePath(tab.filePath);
+    if (normalized === oldNormalized) {
+      tab.filePath = newPath;
+    } else if (normalized.startsWith(oldPrefix)) {
+      tab.filePath = newNormalized + normalized.slice(oldNormalized.length);
+    }
+  }
 }
 
 async function updateWindowTitle(): Promise<void> {
@@ -129,11 +168,35 @@ export async function renameWorkspaceNode(node: FileTreeNode, nextName: string):
   try {
     await rename(node.path, nextPath);
     replaceExpandedPathPrefix(node.path, nextPath);
-    if (editorStore.filePath === node.path) editorStore.setFilePath(nextPath);
+    replaceOpenDocumentPathPrefix(node.path, nextPath);
     await updateWindowTitle();
     await refreshAndReveal(nextPath);
   } catch (e) {
     await message(`Failed to rename: ${e instanceof Error ? e.message : String(e)}`, { title: 'Error', kind: 'error' });
+  }
+}
+
+export async function moveWorkspaceNode(source: FileTreeNode, targetDirectoryPath: string): Promise<void> {
+  if (source.path === targetDirectoryPath || isSameOrInside(targetDirectoryPath, source.path)) {
+    await message('Cannot move a folder into itself or one of its subfolders.', { title: 'Invalid move', kind: 'warning' });
+    return;
+  }
+
+  const currentParent = dirname(source.path);
+  if (normalizePath(currentParent) === normalizePath(targetDirectoryPath)) return;
+  if (!(await confirmCurrentDocumentIfAffected(source.path))) return;
+
+  const nextPath = resolveLocalPath(targetDirectoryPath, source.name);
+  if (!(await confirmReplaceExisting(nextPath))) return;
+
+  try {
+    await rename(source.path, nextPath);
+    replaceExpandedPathPrefix(source.path, nextPath);
+    replaceOpenDocumentPathPrefix(source.path, nextPath);
+    await updateWindowTitle();
+    await refreshAndReveal(nextPath);
+  } catch (e) {
+    await message(`Failed to move: ${e instanceof Error ? e.message : String(e)}`, { title: 'Error', kind: 'error' });
   }
 }
 

@@ -6,10 +6,15 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type DocumentMode = 'windows' | 'tabs';
 export type { ColorSchemeId };
 
+export interface FontOption {
+  label: string;
+  value: string;
+}
+
 // Bundled = shipped via @fontsource/* (works offline).
 // System-only = available only when the user's OS provides it; falls back
 // through the monospace stack otherwise (Consolas ships on Windows).
-export const EDITOR_FONTS = [
+export const EDITOR_FONTS: FontOption[] = [
   { label: 'JetBrains Mono',  value: "'JetBrains Mono', monospace" },
   { label: 'Iosevka',         value: "'Iosevka', monospace" },
   { label: 'Google Sans Code',value: "'Google Sans Code', monospace" },
@@ -19,7 +24,7 @@ export const EDITOR_FONTS = [
   { label: 'Inter',           value: "'Inter', system-ui, sans-serif" },
 ];
 
-export const PREVIEW_FONTS = [
+export const PREVIEW_FONTS: FontOption[] = [
   { label: 'Inter',           value: "'Inter', system-ui, sans-serif" },
   { label: 'Roboto',          value: "'Roboto', system-ui, sans-serif" },
   { label: 'Georgia',         value: "Georgia, serif" },
@@ -36,6 +41,13 @@ export const FONT_SIZES = [
 export const FONT_SIZE_MIN = FONT_SIZES[0];
 export const FONT_SIZE_MAX = FONT_SIZES[FONT_SIZES.length - 1];
 
+export const LINE_HEIGHTS = [
+  1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6,
+  1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2, 2.1, 2.2, 2.3, 2.4,
+] as const;
+export const LINE_HEIGHT_MIN = LINE_HEIGHTS[0];
+export const LINE_HEIGHT_MAX = LINE_HEIGHTS[LINE_HEIGHTS.length - 1];
+
 const RECENT_FILES_MAX = 10;
 
 interface PersistedSettings {
@@ -45,6 +57,7 @@ interface PersistedSettings {
   editorFont: string;
   previewFont: string;
   fontSize: number;
+  lineHeight: number;
   recentFiles: string[];
   documentMode: DocumentMode;
   sidebarVisible: boolean;
@@ -55,6 +68,8 @@ interface PersistedSettings {
 interface SettingsState extends PersistedSettings {
   settingsVisible: boolean;
   aboutVisible: boolean;
+  systemFonts: string[];
+  systemFontsLoaded: boolean;
 }
 
 const STORAGE_KEY = 'texodus.settings.v1';
@@ -65,6 +80,7 @@ const DEFAULTS: PersistedSettings = {
   editorFont: EDITOR_FONTS[0].value,
   previewFont: PREVIEW_FONTS[0].value,
   fontSize: 14,
+  lineHeight: 1.75,
   recentFiles: [],
   documentMode: 'windows',
   sidebarVisible: true,
@@ -73,7 +89,7 @@ const DEFAULTS: PersistedSettings = {
 };
 
 function loadFromStorage(): SettingsState {
-  const transient = { settingsVisible: false, aboutVisible: false };
+  const transient = { settingsVisible: false, aboutVisible: false, systemFonts: [], systemFontsLoaded: false };
   if (typeof localStorage === 'undefined') return { ...DEFAULTS, ...transient };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -100,10 +116,19 @@ export const useSettingsStore = defineStore('settings', {
     setLastWorkspacePath(path: string | null) { this.lastWorkspacePath = path; },
     setSettingsVisible(v: boolean) { this.settingsVisible = v; },
     setAboutVisible(v: boolean) { this.aboutVisible = v; },
+    setSystemFonts(fonts: string[]) {
+      this.systemFonts = Array.from(new Set(fonts.map(f => f.trim()).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b));
+      this.systemFontsLoaded = true;
+    },
     setEditorFont(font: string) { this.editorFont = font; },
     setPreviewFont(font: string) { this.previewFont = font; },
     setFontSize(size: number) {
       this.fontSize = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(size)));
+    },
+    setLineHeight(lineHeight: number) {
+      const rounded = Math.round(lineHeight * 100) / 100;
+      this.lineHeight = Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, rounded));
     },
     cycleTheme() {
       const modes: ThemeMode[] = ['system', 'light', 'dark'];
@@ -121,7 +146,13 @@ export const useSettingsStore = defineStore('settings', {
     persist() {
       if (typeof localStorage === 'undefined') return;
       try {
-        const { settingsVisible: _s, aboutVisible: _a, ...toSave } = this.$state;
+        const {
+          settingsVisible: _s,
+          aboutVisible: _a,
+          systemFonts: _sf,
+          systemFontsLoaded: _sfl,
+          ...toSave
+        } = this.$state;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
       } catch {
         // Quota exceeded or unavailable — silently ignore.

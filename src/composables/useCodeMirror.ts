@@ -92,6 +92,7 @@ export interface ThemeOpts {
   dark: boolean;
   font: string;
   fontSize: number;
+  lineHeight: number;
 }
 
 function buildTheme(opts: ThemeOpts) {
@@ -104,8 +105,8 @@ function buildTheme(opts: ThemeOpts) {
       },
       '.cm-scroller': {
         fontFamily: opts.font,
-        fontSize: opts.fontSize + 'px',
-        lineHeight: '1.75',
+        fontSize: opts.fontSize + 'pt',
+        lineHeight: String(opts.lineHeight),
         padding: '2rem 2.5rem',
         overflowY: 'auto',
       },

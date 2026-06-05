@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -184,6 +184,24 @@ fn report_window_status(
 }
 
 #[tauri::command]
+fn list_system_fonts() -> Vec<String> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+
+    let mut names = BTreeSet::new();
+    for face in db.faces() {
+        for (family, _) in &face.families {
+            let trimmed = family.trim();
+            if !trimmed.is_empty() {
+                names.insert(trimmed.to_string());
+            }
+        }
+    }
+
+    names.into_iter().collect()
+}
+
+#[tauri::command]
 async fn open_new_window(
     app: tauri::AppHandle,
     path: Option<String>,
@@ -248,6 +266,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_pending_file,
             report_window_status,
+            list_system_fonts,
             open_new_window
         ])
         .build(tauri::generate_context!())

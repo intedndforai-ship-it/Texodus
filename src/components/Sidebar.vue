@@ -29,7 +29,12 @@
       </div>
     </header>
 
-    <div class="sidebar__body" @contextmenu.prevent="openRootContextMenu">
+    <div
+      ref="sidebarBodyRef"
+      class="sidebar__body"
+      :class="{ 'sidebar__body--root-drop': draggingNode && dropTargetPath === workspaceStore.rootPath }"
+      @contextmenu.prevent="openRootContextMenu"
+    >
       <div v-if="workspaceStore.isLoading" class="sidebar__state">Loading files…</div>
       <div v-else-if="workspaceStore.error" class="sidebar__state sidebar__state--error">
         {{ workspaceStore.error }}
@@ -56,9 +61,12 @@
           :node="node"
           :selected-path="workspaceStore.selectedPath"
           :expanded-paths="workspaceStore.expandedPaths"
+          :dragging-path="draggingNode?.path ?? null"
+          :drop-target-path="dropTargetPath"
           @open-file="openFile"
           @toggle-directory="toggleDirectory"
           @node-context-menu="openNodeContextMenu"
+          @node-pointer-down="prepareDrag"
         />
       </ul>
     </div>
@@ -118,6 +126,7 @@ import {
   createWorkspaceFile,
   createWorkspaceFolder,
   deleteWorkspaceNode,
+  moveWorkspaceNode,
   renameWorkspaceNode,
   revealWorkspaceNode,
 } from '../services/workspaceFileOperations';
@@ -132,6 +141,11 @@ const workspaceStore = useWorkspaceStore();
 const rootName = computed(() => workspaceStore.rootPath ? basename(workspaceStore.rootPath) : '');
 const lastWorkspaceName = computed(() => settingsStore.lastWorkspacePath ? basename(settingsStore.lastWorkspacePath) : '');
 const nameInputRef = ref<HTMLInputElement | null>(null);
+const sidebarBodyRef = ref<HTMLElement | null>(null);
+const draggingNode = ref<FileTreeNode | null>(null);
+const dropTargetPath = ref<string | null>(null);
+const dragCandidate = ref<{ node: FileTreeNode; startX: number; startY: number } | null>(null);
+let suppressNextClick = false;
 const contextMenu = reactive<{
   visible: boolean;
   x: number;
@@ -162,6 +176,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('click', closeContextMenu);
   window.removeEventListener('keydown', handleContextMenuKeydown);
+  window.removeEventListener('pointermove', handlePointerDragMove);
+  window.removeEventListener('pointercancel', cancelPointerDrag);
 });
 
 async function openFolder() {
@@ -181,6 +197,10 @@ async function openLastFolder() {
 }
 
 async function toggleDirectory(path: string) {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    return;
+  }
   if (!workspaceStore.isExpanded(path)) {
     await loadWorkspaceDirectoryChildren(path);
   }
@@ -281,7 +301,91 @@ async function confirmNamePrompt() {
   else if (action === 'rename') await renameWorkspaceNode(node, value);
 }
 
+function prepareDrag(node: FileTreeNode, event: PointerEvent) {
+  closeContextMenu();
+  dragCandidate.value = { node, startX: event.clientX, startY: event.clientY };
+  window.addEventListener('pointermove', handlePointerDragMove);
+  window.addEventListener('pointerup', handlePointerDragEnd, { once: true });
+  window.addEventListener('pointercancel', cancelPointerDrag, { once: true });
+}
+
+function handlePointerDragMove(event: PointerEvent) {
+  const candidate = dragCandidate.value;
+  if (!candidate) return;
+
+  const moved = Math.hypot(event.clientX - candidate.startX, event.clientY - candidate.startY);
+  if (!draggingNode.value && moved < 5) return;
+  if (!draggingNode.value) {
+    draggingNode.value = candidate.node;
+    suppressNextClick = true;
+    document.body.classList.add('is-dragging-sidebar-node');
+  }
+
+  dropTargetPath.value = getDropTargetPathAt(event.clientX, event.clientY);
+}
+
+async function handlePointerDragEnd(event: PointerEvent) {
+  window.removeEventListener('pointermove', handlePointerDragMove);
+  window.removeEventListener('pointercancel', cancelPointerDrag);
+
+  const source = draggingNode.value;
+  const targetPath = getDropTargetPathAt(event.clientX, event.clientY);
+  endDrag();
+  if (!source || !targetPath) return;
+  await moveWorkspaceNode(source, targetPath);
+}
+
+function cancelPointerDrag() {
+  window.removeEventListener('pointermove', handlePointerDragMove);
+  endDrag();
+}
+
+function getDropTargetPathAt(x: number, y: number): string | null {
+  const source = draggingNode.value;
+  const rootPath = workspaceStore.rootPath;
+  if (!source || !rootPath) return null;
+
+  const element = document.elementFromPoint(x, y) as HTMLElement | null;
+  if (!element) return null;
+
+  const button = element.closest<HTMLElement>('[data-sidebar-path]');
+  if (button) {
+    const path = button.dataset.sidebarPath;
+    const kind = button.dataset.sidebarKind;
+    if (path && kind === 'directory' && canDrop(source.path, path)) return path;
+    return null;
+  }
+
+  if (sidebarBodyRef.value?.contains(element) && canDrop(source.path, rootPath)) return rootPath;
+  return null;
+}
+
+function canDrop(sourcePath: string, targetDirectoryPath: string): boolean {
+  return sourcePath !== targetDirectoryPath && !isSameOrInside(targetDirectoryPath, sourcePath);
+}
+
+function endDrag() {
+  dragCandidate.value = null;
+  draggingNode.value = null;
+  dropTargetPath.value = null;
+  document.body.classList.remove('is-dragging-sidebar-node');
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function isSameOrInside(path: string, parent: string): boolean {
+  const normalizedPath = normalizePath(path);
+  const normalizedParent = normalizePath(parent);
+  return normalizedPath === normalizedParent || normalizedPath.startsWith(`${normalizedParent}/`);
+}
+
 async function openFile(path: string) {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    return;
+  }
   await loadFileFromPath(editorStore, path);
   if (editorStore.filePath === path) workspaceStore.setSelectedPath(path);
 }
@@ -374,6 +478,16 @@ async function openFile(path: string) {
   min-height: 0;
   overflow: auto;
   padding: 0.55rem;
+  transition: background 0.12s ease;
+}
+
+.sidebar__body--root-drop {
+  background: var(--accent-subtle);
+}
+
+:global(body.is-dragging-sidebar-node) {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .sidebar__tree {

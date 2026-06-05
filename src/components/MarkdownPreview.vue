@@ -2,7 +2,7 @@
   <div
     ref="previewRef"
     class="preview-content markdown-body"
-    :style="{ fontFamily: settingsStore.previewFont, fontSize: settingsStore.fontSize + 'px' }"
+    :style="{ fontFamily: settingsStore.previewFont, fontSize: settingsStore.fontSize + 'pt', lineHeight: String(settingsStore.lineHeight) }"
     @click="handleLinkClick"
     @scroll="handleScroll"
   ></div>
@@ -263,7 +263,7 @@ onUnmounted(() => {
 .preview-content {
   padding: 2rem 2.5rem;
   height: 100%;
-  line-height: 1.75;
+  line-height: var(--line-height, 1.75);
   color: var(--text-color);
   box-sizing: border-box;
   overflow-y: auto;

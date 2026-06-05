@@ -16,7 +16,12 @@
               :value="settingsStore.editorFont"
               @change="settingsStore.setEditorFont(($event.target as HTMLSelectElement).value)"
             >
-              <option v-for="f in EDITOR_FONTS" :key="f.label" :value="f.value">{{ f.label }}</option>
+              <optgroup label="Bundled">
+                <option v-for="f in EDITOR_FONTS" :key="`bundled-editor-${f.label}`" :value="f.value">{{ f.label }}</option>
+              </optgroup>
+              <optgroup v-if="editorSystemFontOptions.length" label="System fonts">
+                <option v-for="f in editorSystemFontOptions" :key="`system-editor-${f.label}`" :value="f.value">{{ f.label }}</option>
+              </optgroup>
             </select>
           </div>
 
@@ -27,8 +32,19 @@
               :value="settingsStore.previewFont"
               @change="settingsStore.setPreviewFont(($event.target as HTMLSelectElement).value)"
             >
-              <option v-for="f in PREVIEW_FONTS" :key="f.label" :value="f.value">{{ f.label }}</option>
+              <optgroup label="Bundled">
+                <option v-for="f in PREVIEW_FONTS" :key="`bundled-preview-${f.label}`" :value="f.value">{{ f.label }}</option>
+              </optgroup>
+              <optgroup v-if="previewSystemFontOptions.length" label="System fonts">
+                <option v-for="f in previewSystemFontOptions" :key="`system-preview-${f.label}`" :value="f.value">{{ f.label }}</option>
+              </optgroup>
             </select>
+          </div>
+
+          <div class="settings-hint" aria-live="polite">
+            <span v-if="systemFontsLoading">Loading system fonts…</span>
+            <span v-else-if="systemFontsError">System fonts unavailable</span>
+            <span v-else-if="settingsStore.systemFontsLoaded">{{ settingsStore.systemFonts.length }} system fonts found</span>
           </div>
 
           <div class="settings-row">
@@ -66,7 +82,7 @@
                 :value="settingsStore.fontSize"
                 @change="settingsStore.setFontSize(Number(($event.target as HTMLSelectElement).value))"
               >
-                <option v-for="s in FONT_SIZES" :key="s" :value="s">{{ s }} px</option>
+                <option v-for="s in FONT_SIZES" :key="s" :value="s">{{ s }} pt</option>
               </select>
               <button
                 class="stepper-btn"
@@ -77,13 +93,39 @@
             </div>
           </div>
 
+          <div class="settings-row">
+            <label for="line-height">Line height</label>
+            <div class="stepper">
+              <button
+                class="stepper-btn"
+                :disabled="settingsStore.lineHeight <= LINE_HEIGHT_MIN"
+                aria-label="Decrease line height"
+                @click="settingsStore.setLineHeight(settingsStore.lineHeight - 0.05)"
+              >−</button>
+              <select
+                id="line-height"
+                class="stepper-value"
+                :value="settingsStore.lineHeight"
+                @change="settingsStore.setLineHeight(Number(($event.target as HTMLSelectElement).value))"
+              >
+                <option v-for="h in LINE_HEIGHTS" :key="h" :value="h">{{ h.toFixed(2) }}</option>
+              </select>
+              <button
+                class="stepper-btn"
+                :disabled="settingsStore.lineHeight >= LINE_HEIGHT_MAX"
+                aria-label="Increase line height"
+                @click="settingsStore.setLineHeight(settingsStore.lineHeight + 0.05)"
+              >+</button>
+            </div>
+          </div>
+
           <div class="settings-preview">
             <span class="section-label">Fonts preview</span>
             <div class="fonts-preview">
-              <div class="sample" :style="{ fontFamily: settingsStore.editorFont, fontSize: settingsStore.fontSize + 'px' }">
+              <div class="sample" :style="{ fontFamily: settingsStore.editorFont, fontSize: settingsStore.fontSize + 'pt', lineHeight: String(settingsStore.lineHeight) }">
                 <strong>Editor:</strong> const greet = () =&gt; "Hello, world";
               </div>
-              <div class="sample" :style="{ fontFamily: settingsStore.previewFont, fontSize: settingsStore.fontSize + 'px' }">
+              <div class="sample" :style="{ fontFamily: settingsStore.previewFont, fontSize: settingsStore.fontSize + 'pt', lineHeight: String(settingsStore.lineHeight) }">
                 <strong>Preview:</strong> The quick brown fox jumps over the lazy dog.
               </div>
             </div>
@@ -121,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   useSettingsStore,
   EDITOR_FONTS,
@@ -129,10 +171,44 @@ import {
   FONT_SIZES,
   FONT_SIZE_MIN,
   FONT_SIZE_MAX,
+  LINE_HEIGHTS,
+  LINE_HEIGHT_MIN,
+  LINE_HEIGHT_MAX,
 } from '../stores/settings';
 import { COLOR_SCHEMES } from '../themes';
+import { invoke } from '@tauri-apps/api/core';
 
 const settingsStore = useSettingsStore();
+const systemFontsLoading = ref(false);
+const systemFontsError = ref(false);
+
+const quoteFontFamily = (name: string) => `'${name.replace(/'/g, "\\'")}'`;
+const systemFontOptions = computed(() => {
+  const bundledLabels = new Set([...EDITOR_FONTS, ...PREVIEW_FONTS].map(f => f.label));
+  return settingsStore.systemFonts
+    .filter(name => !bundledLabels.has(name))
+    .map(name => ({ label: name, value: quoteFontFamily(name) }));
+});
+const editorSystemFontOptions = computed(() =>
+  systemFontOptions.value.map(f => ({ ...f, value: `${f.value}, monospace` })),
+);
+const previewSystemFontOptions = computed(() =>
+  systemFontOptions.value.map(f => ({ ...f, value: `${f.value}, system-ui, sans-serif` })),
+);
+
+async function loadSystemFonts() {
+  if (settingsStore.systemFontsLoaded || systemFontsLoading.value) return;
+  systemFontsLoading.value = true;
+  systemFontsError.value = false;
+  try {
+    settingsStore.setSystemFonts(await invoke<string[]>('list_system_fonts'));
+  } catch (e) {
+    console.warn('Failed to list system fonts:', e);
+    systemFontsError.value = true;
+  } finally {
+    systemFontsLoading.value = false;
+  }
+}
 
 const close = () => { settingsStore.setSettingsVisible(false); };
 
@@ -143,7 +219,17 @@ const onKey = (e: KeyboardEvent) => {
   }
 };
 
-onMounted(() => window.addEventListener('keydown', onKey));
+watch(
+  () => settingsStore.settingsVisible,
+  (visible) => {
+    if (visible) void loadSystemFonts();
+  },
+);
+
+onMounted(() => {
+  window.addEventListener('keydown', onKey);
+  if (settingsStore.settingsVisible) void loadSystemFonts();
+});
 onUnmounted(() => window.removeEventListener('keydown', onKey));
 </script>
 
@@ -256,6 +342,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
 .settings-row select:focus {
   outline: 2px solid var(--accent-subtle);
   border-color: var(--accent-color);
+}
+
+.settings-hint {
+  margin-top: -0.35rem;
+  min-height: 1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: right;
 }
 
 .stepper {

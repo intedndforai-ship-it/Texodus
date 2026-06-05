@@ -45,6 +45,7 @@ function currentThemeOpts(): ThemeOpts {
     dark: isDarkPreview(),
     font: settingsStore.editorFont,
     fontSize: settingsStore.fontSize,
+    lineHeight: settingsStore.lineHeight,
   };
 }
 
@@ -128,6 +129,7 @@ watch(
     () => settingsStore.colorScheme,
     () => settingsStore.editorFont,
     () => settingsStore.fontSize,
+    () => settingsStore.lineHeight,
   ],
   () => {
     if (!view) return;
