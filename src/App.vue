@@ -162,15 +162,19 @@ let unlistenDrop: Unlisten = null;
 let unlistenFileOpen: Unlisten = null;
 let unlistenFocus: Unlisten = null;
 
-// Drains the Rust-side pending-file slot. Used both at mount (to pick up a
-// path that arrived before we could listen) and on every `open-file-pending`
+// Drains the Rust-side pending-file queue. Used both at mount (to pick up
+// paths that arrived before we could listen) and on every `open-file-pending`
 // wake-up (Finder "Open With" while running, second-launch via single-instance).
-async function consumePendingFile() {
+// The queue can hold several paths (multi-select "Open With" in tabs mode);
+// open them sequentially so each lands in its own tab/window.
+async function consumePendingFiles() {
   try {
-    const path = await invoke<string | null>('take_pending_file');
-    if (path) await requestOpenFromPath(editorStore, path);
+    const paths = await invoke<string[]>('take_pending_files');
+    for (const path of paths) {
+      await requestOpenFromPath(editorStore, path);
+    }
   } catch (e) {
-    console.warn('Failed to consume pending file:', e);
+    console.warn('Failed to consume pending files:', e);
     showToast('Failed to open file');
   }
 }
@@ -238,9 +242,9 @@ onMounted(async () => {
   // the listener attach and the initial drain, we still catch it.
   try {
     unlistenFileOpen = await listen('open-file-pending', () => {
-      void consumePendingFile();
+      void consumePendingFiles();
     });
-    await consumePendingFile();
+    await consumePendingFiles();
   } catch (e) {
     console.warn('File-association handler setup failed:', e);
   }

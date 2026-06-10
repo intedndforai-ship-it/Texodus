@@ -72,7 +72,7 @@ interface SettingsState extends PersistedSettings {
   systemFontsLoaded: boolean;
 }
 
-const STORAGE_KEY = 'texodus.settings.v1';
+export const SETTINGS_STORAGE_KEY = 'texodus.settings.v1';
 const DEFAULTS: PersistedSettings = {
   layoutMode: 'split',
   themeMode: 'system',
@@ -88,17 +88,26 @@ const DEFAULTS: PersistedSettings = {
   lastWorkspacePath: null,
 };
 
-function loadFromStorage(): SettingsState {
-  const transient = { settingsVisible: false, aboutVisible: false, systemFonts: [], systemFontsLoaded: false };
-  if (typeof localStorage === 'undefined') return { ...DEFAULTS, ...transient };
+function loadPersisted(): PersistedSettings {
+  if (typeof localStorage === 'undefined') return { ...DEFAULTS };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULTS, ...transient };
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULTS };
     const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-    return { ...DEFAULTS, ...parsed, ...transient };
+    return { ...DEFAULTS, ...parsed };
   } catch {
-    return { ...DEFAULTS, ...transient };
+    return { ...DEFAULTS };
   }
+}
+
+function loadFromStorage(): SettingsState {
+  return {
+    ...loadPersisted(),
+    settingsVisible: false,
+    aboutVisible: false,
+    systemFonts: [],
+    systemFontsLoaded: false,
+  };
 }
 
 export const useSettingsStore = defineStore('settings', {
@@ -143,6 +152,13 @@ export const useSettingsStore = defineStore('settings', {
     clearRecentFiles() {
       this.recentFiles = [];
     },
+    // Re-reads persisted settings from localStorage. Called when another
+    // window writes the settings key (`storage` event) so every window stays
+    // in sync — in particular `documentMode`, which a stale window would
+    // otherwise overwrite in the Rust backend via report_window_status.
+    reloadFromStorage() {
+      this.$patch(loadPersisted());
+    },
     persist() {
       if (typeof localStorage === 'undefined') return;
       try {
@@ -153,7 +169,7 @@ export const useSettingsStore = defineStore('settings', {
           systemFontsLoaded: _sfl,
           ...toSave
         } = this.$state;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toSave));
       } catch {
         // Quota exceeded or unavailable — silently ignore.
       }

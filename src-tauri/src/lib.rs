@@ -28,8 +28,10 @@ impl Default for DocumentMode {
 pub struct AppState {
     // Maps window_label -> current open file status
     pub window_statuses: Mutex<HashMap<String, WindowStatus>>,
-    // Maps window_label -> pending file path to load on startup
-    pub pending_files: Mutex<HashMap<String, String>>,
+    // Maps window_label -> queue of pending file paths to load. A queue (not
+    // a single slot) because several "Open With" files can target the same
+    // window (tabs mode, multi-select in Finder) before the frontend drains.
+    pub pending_files: Mutex<HashMap<String, Vec<String>>>,
     // Latest documentMode reported by the frontend (shared across windows).
     pub document_mode: Mutex<DocumentMode>,
 }
@@ -108,7 +110,7 @@ fn main_window_is_empty(app: &AppHandle, state: &AppState) -> bool {
         let main_has_other_pending = state
             .pending_files
             .lock()
-            .map(|p| p.contains_key("main"))
+            .map(|p| p.get("main").is_some_and(|q| !q.is_empty()))
             .unwrap_or(false);
         return !main_has_other_pending;
     }
@@ -119,7 +121,7 @@ fn main_window_is_empty(app: &AppHandle, state: &AppState) -> bool {
     let has_pending = state
         .pending_files
         .lock()
-        .map(|p| p.contains_key("main"))
+        .map(|p| p.get("main").is_some_and(|q| !q.is_empty()))
         .unwrap_or(true);
     if has_pending {
         return false;
@@ -165,7 +167,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
     let already_handled = state
         .pending_files
         .lock()
-        .map(|p| p.values().any(|v| v == &path))
+        .map(|p| p.values().any(|q| q.contains(&path)))
         .unwrap_or(false);
     if already_handled {
         if let Some(win) = app.get_webview_window("main") {
@@ -188,7 +190,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
     if tabs_mode {
         if let Some(label) = target_window_label(app) {
             if let Ok(mut pending) = state.pending_files.lock() {
-                pending.insert(label.clone(), path);
+                pending.entry(label.clone()).or_default().push(path);
             }
             let _ = app.emit_to(&label, "open-file-pending", ());
             if let Some(win) = app.get_webview_window(&label) {
@@ -202,7 +204,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
 
     if main_window_is_empty(app, &state) {
         if let Ok(mut pending) = state.pending_files.lock() {
-            pending.insert("main".to_string(), path);
+            pending.entry("main".to_string()).or_default().push(path);
         }
         let _ = app.emit_to("main", "open-file-pending", ());
         if let Some(win) = app.get_webview_window("main") {
@@ -213,19 +215,20 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
     } else {
         let label = next_window_label();
         if let Ok(mut pending) = state.pending_files.lock() {
-            pending.insert(label.clone(), path);
+            pending.insert(label.clone(), vec![path]);
         }
         build_window(app, &label);
     }
 }
 
 #[tauri::command]
-fn take_pending_file(window: tauri::Window, state: tauri::State<'_, AppState>) -> Option<String> {
+fn take_pending_files(window: tauri::Window, state: tauri::State<'_, AppState>) -> Vec<String> {
     state
         .pending_files
         .lock()
         .ok()
         .and_then(|mut p| p.remove(window.label()))
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -279,7 +282,7 @@ async fn open_new_window(
     let label = next_window_label();
     if let Some(p) = path {
         if let Ok(mut pending) = state.pending_files.lock() {
-            pending.insert(label.clone(), p);
+            pending.insert(label.clone(), vec![p]);
         }
     }
     build_window(&app, &label);
@@ -302,7 +305,7 @@ pub fn run() {
             .pending_files
             .lock()
             .unwrap()
-            .insert("main".to_string(), path);
+            .insert("main".to_string(), vec![path]);
     }
 
     let mut builder = tauri::Builder::default()
@@ -333,7 +336,7 @@ pub fn run() {
 
     let app = builder
         .invoke_handler(tauri::generate_handler![
-            take_pending_file,
+            take_pending_files,
             report_window_status,
             list_system_fonts,
             open_new_window
