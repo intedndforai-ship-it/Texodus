@@ -373,3 +373,47 @@ pub fn run() {
         _ => {}
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supported_paths_match_markdown_extensions_case_insensitively() {
+        assert!(is_supported_path("/tmp/notes.md"));
+        assert!(is_supported_path("/tmp/notes.MD"));
+        assert!(is_supported_path("C:\\Docs\\Read Me.Markdown"));
+        assert!(is_supported_path("/tmp/log.txt"));
+
+        assert!(!is_supported_path("/tmp/main.rs"));
+        assert!(!is_supported_path("/tmp/md")); // ".md" must be a suffix with the dot
+        assert!(!is_supported_path("/tmp/notes.md.bak"));
+        assert!(!is_supported_path(""));
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn extract_file_picks_the_first_supported_arg_after_argv0() {
+        let args = vec![
+            "/Applications/Texodus.app/Contents/MacOS/texodus".to_string(),
+            "--some-flag".to_string(),
+            "/tmp/a.md".to_string(),
+            "/tmp/b.md".to_string(),
+        ];
+        assert_eq!(extract_file_from_args(args), Some("/tmp/a.md".to_string()));
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn extract_file_skips_argv0_even_when_it_looks_supported() {
+        let args = vec!["./texodus.md".to_string()];
+        assert_eq!(extract_file_from_args(args), None);
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn extract_file_returns_none_without_a_supported_path() {
+        let args = vec!["texodus".to_string(), "--verbose".to_string()];
+        assert_eq!(extract_file_from_args(args), None);
+    }
+}

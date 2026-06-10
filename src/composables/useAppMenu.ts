@@ -24,7 +24,8 @@ const isMac = navigator.userAgent.includes('Macintosh');
 
 // Keep a global reference to prevent the menu (and its JS callbacks)
 // from being garbage collected by V8, which breaks menu actions on Windows.
-let activeMenu: Menu | null = null;
+// Underscore prefix: assigned but intentionally never read.
+let _activeMenu: Menu | null = null;
 
 /**
  * Builds and installs the native application menu.
@@ -233,14 +234,14 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
   submenus.push(fileSubmenu, editSubmenu, viewSubmenu, helpSubmenu);
 
   const menu = await Menu.new({ items: submenus });
-  activeMenu = menu; // Prevent GC
+  _activeMenu = menu; // Prevent GC
 
   if (isMac) {
     await menu.setAsAppMenu();
   } else {
     try {
       await menu.setAsWindowMenu(getCurrentWindow());
-    } catch (e) {
+    } catch {
       // Fallback if setAsWindowMenu fails
       await menu.setAsAppMenu();
     }

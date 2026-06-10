@@ -1,3 +1,6 @@
+<!-- Renderless component: only installs global keydown shortcuts. -->
+<template />
+
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import { useMarkdownPreview } from '../composables/useMarkdownPreview';
@@ -92,5 +95,3 @@ const handleKeydown = (e: KeyboardEvent) => {
 onMounted(() => window.addEventListener('keydown', handleKeydown));
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown));
 </script>
-
-<template />
