@@ -68,6 +68,26 @@
           </div>
 
           <div class="settings-row">
+            <label>Scroll sync</label>
+            <div class="segmented" role="radiogroup" aria-label="Scroll sync smoothing">
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="!settingsStore.smoothScrollSync"
+                :class="{ active: !settingsStore.smoothScrollSync }"
+                @click="settingsStore.setSmoothScrollSync(false)"
+              >Instant</button>
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="settingsStore.smoothScrollSync"
+                :class="{ active: settingsStore.smoothScrollSync }"
+                @click="settingsStore.setSmoothScrollSync(true)"
+              >Smooth</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
             <label for="font-size">Font size</label>
             <SettingsStepper
               id="font-size"

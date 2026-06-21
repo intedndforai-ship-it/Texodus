@@ -63,6 +63,7 @@ interface PersistedSettings {
   sidebarVisible: boolean;
   sidebarWidth: number;
   lastWorkspacePath: string | null;
+  smoothScrollSync: boolean;
 }
 
 interface SettingsState extends PersistedSettings {
@@ -86,6 +87,7 @@ const DEFAULTS: PersistedSettings = {
   sidebarVisible: true,
   sidebarWidth: 260,
   lastWorkspacePath: null,
+  smoothScrollSync: false,
 };
 
 function loadPersisted(): PersistedSettings {
@@ -119,6 +121,7 @@ export const useSettingsStore = defineStore('settings', {
     setDocumentMode(mode: DocumentMode) { this.documentMode = mode; },
     setSidebarVisible(v: boolean) { this.sidebarVisible = v; },
     toggleSidebar() { this.sidebarVisible = !this.sidebarVisible; },
+    setSmoothScrollSync(v: boolean) { this.smoothScrollSync = v; },
     setSidebarWidth(width: number) {
       this.sidebarWidth = Math.max(220, Math.min(420, Math.round(width)));
     },
