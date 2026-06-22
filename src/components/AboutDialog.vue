@@ -46,8 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { getVersion } from '@tauri-apps/api/app';
+import { ref } from 'vue';
 import packageJson from '../../package.json';
 // The repo's LICENSE.txt is the single source of truth; ?raw inlines it at
 // build time so the dialog can't drift from the actual license.
@@ -56,15 +55,11 @@ import { useSettingsStore } from '../stores/settings';
 
 const settingsStore = useSettingsStore();
 const activeTab = ref<'info' | 'license'>('info');
-const appVersion = ref(packageJson.version);
-
-onMounted(async () => {
-  try {
-    appVersion.value = await getVersion();
-  } catch (error) {
-    console.warn('Could not fetch app version from Tauri, using fallback:', error);
-  }
-});
+// package.json is the single source of truth for the version (the bump script
+// updates it, and tauri.conf.json reads it from there). Read it directly rather
+// than via getVersion(), which returns the version compiled into the Rust
+// binary and would show stale until a recompile after each bump.
+const appVersion = packageJson.version;
 
 const close = () => {
   settingsStore.setAboutVisible(false);
