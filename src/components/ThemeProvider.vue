@@ -4,52 +4,41 @@
   </div>
 </template>
 
-<script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+<script setup lang="ts">
+import { computed } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { COLOR_SCHEMES } from '../themes';
+import { useResolvedTheme } from '../composables/useResolvedTheme';
+
+interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
 
 const settingsStore = useSettingsStore();
-const systemDark = ref(false);
+const { resolvedTheme } = useResolvedTheme();
 
-let mq = null;
-const updateSystemTheme = (e) => { systemDark.value = e.matches; };
-
-onMounted(() => {
-  mq = window.matchMedia('(prefers-color-scheme: dark)');
-  systemDark.value = mq.matches;
-  mq.addEventListener('change', updateSystemTheme);
-});
-
-onUnmounted(() => {
-  mq?.removeEventListener('change', updateSystemTheme);
-});
-
-const resolvedTheme = computed(() => {
-  if (settingsStore.themeMode === 'system') {
-    return systemDark.value ? 'dark' : 'light';
-  }
-  return settingsStore.themeMode;
-});
-
-function hexToRgb(hex) {
+function hexToRgb(hex: string): RgbColor {
   const m = /^#?([0-9a-fA-F]{6})$/.exec((hex || '').trim());
   const n = m ? parseInt(m[1], 16) : 0xffd54a;
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
 // Perceived luminance → readable text color on the solid (current-match) color.
-function readableOn({ r, g, b }) {
+function readableOn({ r, g, b }: RgbColor): string {
   const l = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return l > 0.6 ? '#1a1d23' : '#ffffff';
 }
 
-const themeStyle = computed(() => {
+const themeStyle = computed<Record<string, string>>(() => {
   const scheme = COLOR_SCHEMES.find(s => s.id === settingsStore.colorScheme) ?? COLOR_SCHEMES[0];
   const t = scheme[resolvedTheme.value];
+  const bg = hexToRgb(t.bgColor);
   const hl = hexToRgb(settingsStore.searchHighlightColor);
   return {
     '--bg-color':               t.bgColor,
+    '--bg-color-rgb':           `${bg.r}, ${bg.g}, ${bg.b}`,
     '--bg-secondary':           t.bgSecondary,
     '--toolbar-bg':             t.toolbarBg,
     '--border-color':           t.borderColor,

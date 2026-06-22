@@ -16,6 +16,7 @@
  * (CDN script in HTML export, DOM-walked theme detection in preview, etc.);
  * centralising it ensures all surfaces stay in sync.
  */
+import DOMPurify from 'dompurify';
 
 type MermaidModule = {
   initialize: (opts: Record<string, unknown>) => void;
@@ -42,7 +43,7 @@ function initMermaid(mermaid: MermaidModule, opts: MermaidRenderOptions): void {
   mermaid.initialize({
     startOnLoad: false,
     theme: opts.theme === 'dark' ? 'dark' : 'default',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
   });
 }
 
@@ -54,7 +55,16 @@ export async function renderMermaidSvg(
   const mermaid = await loadMermaid();
   initMermaid(mermaid, opts);
   const { svg } = await mermaid.render(id, code);
-  return svg;
+  return sanitizeMermaidSvg(svg);
+}
+
+function sanitizeMermaidSvg(svg: string): string {
+  return DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    // Mermaid output is inserted with innerHTML. Keep the generated SVG-only
+    // surface and forbid tags that can execute/embed active or remote content.
+    FORBID_TAGS: ['foreignObject', 'script', 'iframe', 'image'],
+  });
 }
 
 function buildErrorBlock(err: unknown, code: string): HTMLElement {
@@ -277,7 +287,7 @@ export async function renderMermaidBlocks(
 
     try {
       const { svg } = await mermaid.render(id, code);
-      pre.replaceWith(buildDiagramBlock(svg));
+      pre.replaceWith(buildDiagramBlock(sanitizeMermaidSvg(svg)));
     } catch (err) {
       console.error('Mermaid render error:', err);
       pre.replaceWith(buildErrorBlock(err, code));

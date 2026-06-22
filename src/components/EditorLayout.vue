@@ -14,10 +14,12 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  layoutMode: String,
-});
+<script setup lang="ts">
+import { type LayoutMode } from '../stores/settings';
+
+defineProps<{
+  layoutMode: LayoutMode;
+}>();
 </script>
 
 <style scoped>

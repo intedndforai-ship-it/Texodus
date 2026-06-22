@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { type FileTreeNode } from '../stores/workspace';
+import { isSameOrInside } from '../utils/path';
 import iconFolder from '../assets/icons/icons8-folder-100.png';
 import iconDocument from '../assets/icons/icons8-document-100.png';
 import iconOpenFolder from '../assets/icons/icons8-open-file-100.png';
@@ -88,15 +89,6 @@ function handleClick() {
   }
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '');
-}
-
-function isSameOrInside(path: string, parent: string): boolean {
-  const normalizedPath = normalizePath(path);
-  const normalizedParent = normalizePath(parent);
-  return normalizedPath === normalizedParent || normalizedPath.startsWith(`${normalizedParent}/`);
-}
 </script>
 
 <style scoped>

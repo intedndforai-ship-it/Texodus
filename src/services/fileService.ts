@@ -6,6 +6,7 @@ import { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
 import { refreshWorkspaceTreeIfPathInside } from './workspaceService';
+import { allowAssetDirectoryForFile } from './assetScopeService';
 import { basename } from '../utils/path';
 
 const FILE_FILTERS =[{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
@@ -34,6 +35,7 @@ export async function openFile(store: EditorStore): Promise<void> {
 
     const path = selected as string;
     const content = await readTextFile(path);
+    await allowAssetDirectoryForFile(path);
     store.loadFile(content, path);
     useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
@@ -46,6 +48,7 @@ export async function loadFileFromPath(store: EditorStore, path: string): Promis
   try {
     if (!(await confirmCanProceed(store))) return;
     const content = await readTextFile(path);
+    await allowAssetDirectoryForFile(path);
     store.loadFile(content, path);
     useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
@@ -79,6 +82,7 @@ export async function saveFileAs(store: EditorStore): Promise<boolean> {
 
     const path = selected as string;
     await writeTextFile(path, store.content);
+    await allowAssetDirectoryForFile(path);
     store.setFilePath(path);
     store.setDirty(false);
     useSettingsStore().addRecentFile(path);
@@ -145,6 +149,7 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
   if (settings.documentMode === 'tabs') {
     try {
       const content = await readTextFile(path);
+      await allowAssetDirectoryForFile(path);
       if (isActiveTabEmpty(store)) {
         store.loadFile(content, path);
       } else {

@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -256,6 +257,13 @@ fn report_window_status(
 }
 
 #[tauri::command]
+fn allow_asset_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_directory(PathBuf::from(path), true)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn list_system_fonts() -> Vec<String> {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
@@ -338,6 +346,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_pending_files,
             report_window_status,
+            allow_asset_directory,
             list_system_fonts,
             open_new_window
         ])

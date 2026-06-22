@@ -120,7 +120,6 @@ const continueListKeymap: KeyBinding[] = [
 // the entire EditorState — see https://codemirror.net/docs/ref/#state.Compartment
 
 const themeCompartment = new Compartment();
-const fontCompartment = new Compartment();
 
 export interface ThemeOpts {
   dark: boolean;
@@ -222,7 +221,6 @@ export function createMarkdownState(opts: CreateStateOpts): EditorState {
         ...historyKeymap,
       ]),
       themeCompartment.of(buildTheme(opts.theme)),
-      fontCompartment.of([]),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) opts.onChange(u.state.doc.toString());
       }),

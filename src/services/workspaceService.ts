@@ -2,6 +2,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { readDir } from '@tauri-apps/plugin-fs';
 import { type FileTreeNode, useWorkspaceStore } from '../stores/workspace';
 import { useSettingsStore } from '../stores/settings';
+import { allowAssetDirectory } from './assetScopeService';
 import { dirname, resolveLocalPath } from '../utils/path';
 
 const VISIBLE_FILE_EXTENSIONS = /\.(md|markdown|txt)$/i;
@@ -75,6 +76,7 @@ export async function refreshWorkspaceTree(rootPath?: string): Promise<void> {
   workspaceStore.setLoading(true);
   workspaceStore.setError(null);
   try {
+    await allowAssetDirectory(path);
     const tree = await loadWorkspaceTree(path);
     workspaceStore.setWorkspace(path, tree);
     await reloadExpandedDirectories(path);

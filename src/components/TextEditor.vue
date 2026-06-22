@@ -7,6 +7,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { useMarkdownPreview } from '../composables/useMarkdownPreview';
+import { useResolvedTheme } from '../composables/useResolvedTheme';
 import {
   createMarkdownEditor,
   createMarkdownState,
@@ -20,6 +21,7 @@ import type { EditorState } from '@codemirror/state';
 const editorStore = useEditorStore();
 const settingsStore = useSettingsStore();
 const { setEditorView, syncFromEditor } = useMarkdownPreview();
+const { isDarkTheme } = useResolvedTheme();
 const containerRef = ref<HTMLElement | null>(null);
 
 let view: EditorView | null = null;
@@ -33,16 +35,9 @@ let lastActiveTabId: string | null = null;
 const SCROLL_HIDE_DELAY = 1200;
 let scrollHideTimer: ReturnType<typeof setTimeout> | null = null;
 
-function isDarkPreview(): boolean {
-  if (settingsStore.themeMode === 'dark') return true;
-  if (settingsStore.themeMode === 'light') return false;
-  return typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
-}
-
 function currentThemeOpts(): ThemeOpts {
   return {
-    dark: isDarkPreview(),
+    dark: isDarkTheme.value,
     font: settingsStore.editorFont,
     fontSize: settingsStore.fontSize,
     lineHeight: settingsStore.lineHeight,
@@ -93,7 +88,9 @@ watch(
       tabStates.set(lastActiveTabId, view.state);
       const cached = tabStates.get(newId);
       tabStates.delete(newId);
-      const target = cached ?? buildStateForContent(newContent);
+      const target = cached?.doc.toString() === newContent
+        ? cached
+        : buildStateForContent(newContent);
       view.setState(target);
     } else {
       // Same tab — external content change (file open / reset). Diff and patch.
@@ -125,7 +122,7 @@ watch(
 // tab after a theme change would show the previous theme.
 watch(
   [
-    () => settingsStore.themeMode,
+    () => isDarkTheme.value,
     () => settingsStore.colorScheme,
     () => settingsStore.editorFont,
     () => settingsStore.fontSize,

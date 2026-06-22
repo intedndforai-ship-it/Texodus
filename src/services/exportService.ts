@@ -1,8 +1,8 @@
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
-import { marked, type Token, type Tokens } from "marked";
+import { type Token, type Tokens } from "marked";
 import type { Content, TDocumentDefinitions } from "pdfmake/interfaces";
-import { sanitizeMarkdownHtml } from "./markdownSanitizer";
+import { lexMarkdown, renderMarkdownToHtml, sanitizeMarkdownHtml } from "./markdownSanitizer";
 import { renderMermaidBlocks, renderMermaidSvg } from "./mermaidRenderer";
 
 type PdfMakeModule = {
@@ -100,7 +100,7 @@ const EXPORT_CSS = `
  * exported file works offline and doesn't violate the app's strict CSP.
  */
 export async function renderExportHtml(markdown: string, title: string): Promise<string> {
-  const bodyHtml = sanitizeMarkdownHtml(await marked.parse(markdown));
+  const bodyHtml = sanitizeMarkdownHtml(renderMarkdownToHtml(markdown));
 
   // Inline mermaid as SVG via a detached container so the export file has
   // zero external dependencies. The container is never attached to the DOM
@@ -453,7 +453,7 @@ async function preRenderMermaidPngs(
 }
 
 async function buildPdfDocDefinition(markdown: string, title: string): Promise<TDocumentDefinitions> {
-  const tokens = marked.lexer(markdown);
+  const tokens = lexMarkdown(markdown);
 
   const mermaidPngs: MermaidPngMap = new WeakMap();
   const mermaidTokens = collectMermaidCodeTokens(tokens);

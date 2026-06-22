@@ -9,21 +9,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { useMarkdownPreview } from '../composables/useMarkdownPreview';
 import { useDocumentSearch } from '../composables/useDocumentSearch';
-import { sanitizeMarkdownHtml } from '../services/markdownSanitizer';
+import { useResolvedTheme } from '../composables/useResolvedTheme';
+import { lexMarkdown, parseMarkdownTokens, sanitizeMarkdownHtml } from '../services/markdownSanitizer';
 import { renderMermaidBlocks } from '../services/mermaidRenderer';
-import { marked, type Token } from 'marked';
+import { type Token } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { dirname, hasUrlScheme, isAbsolutePath, resolveLocalPath } from '../utils/path';
+import { collectMarkdownTaskCheckboxes } from '../utils/markdownTasks';
 
 const editorStore = useEditorStore();
 const settingsStore = useSettingsStore();
 const { setPreviewElement, syncFromPreview } = useMarkdownPreview();
 const { refresh: refreshSearch } = useDocumentSearch();
+const { isDarkTheme } = useResolvedTheme();
 const previewRef = ref<HTMLElement | null>(null);
 
 // Debounce rendering (§6.2)
@@ -38,14 +41,6 @@ const DEBOUNCE_MS = 120;
 // sentinel and fresh output would otherwise both be '' and miss the swap.
 let lastRenderedHtml = '';
 let forceRerender = true;
-
-const isDarkPreview = computed(() => {
-  if (settingsStore.themeMode === 'dark') return true;
-  if (settingsStore.themeMode === 'light') return false;
-  // 'system' — fall back to OS preference
-  return typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
-});
 
 // Walks block-level tokens and records the 0-indexed source line each block
 // starts at. Used to attach `data-source-line` anchors for the line-based
@@ -86,14 +81,24 @@ function rewriteLocalImages(container: HTMLElement, filePath: string | null) {
   }
 }
 
+function isAllowedExternalHref(href: string): boolean {
+  if (!hasUrlScheme(href)) return false;
+  try {
+    const url = new URL(href);
+    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
 const renderMarkdown = async () => {
   if (!previewRef.value) return;
 
   // Lex first so we can record per-block source line numbers, then parse the
   // already-tokenised tree (avoids tokenising twice via marked.parse).
-  const tokens = marked.lexer(editorStore.content);
+  const tokens = lexMarkdown(editorStore.content);
   const blockLines = collectBlockLines(tokens);
-  const html = marked.parser(tokens) as string;
+  const html = parseMarkdownTokens(tokens);
   const clean = sanitizeMarkdownHtml(html);
 
   const htmlChanged = forceRerender || clean !== lastRenderedHtml;
@@ -109,7 +114,7 @@ const renderMarkdown = async () => {
   // Mermaid replaces matching `<pre>` blocks with new `<div>`s — attach line
   // anchors AFTER so the replacements get the data attribute too.
   await renderMermaidBlocks(previewRef.value, {
-    theme: isDarkPreview.value ? 'dark' : 'default',
+    theme: isDarkTheme.value ? 'dark' : 'default',
   });
 
   if (htmlChanged) {
@@ -138,7 +143,7 @@ watch(
 );
 
 watch(
-  [() => settingsStore.themeMode, () => settingsStore.colorScheme],
+  [() => isDarkTheme.value, () => settingsStore.colorScheme],
   () => {
     // Theme switch: force a fresh write so mermaid blocks pick up the new
     // theme. Without this the previous run's themed SVGs would persist.
@@ -163,40 +168,14 @@ watch(
 
 const toggleMarkdownCheckbox = (index: number) => {
   const original = editorStore.content;
+  const checkbox = collectMarkdownTaskCheckboxes(original)[index];
+  if (!checkbox) return;
 
-  // Mask fenced code blocks AND inline code spans so checkboxes that happen
-  // to appear inside `\`- [ ]\`` or fenced blocks aren't miscounted.
-  const masked = original
-    .replace(/```[\s\S]*?```/g, (m) => ' '.repeat(m.length))
-    .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
-
-  // Regex to match markdown task list checkboxes: e.g., - [ ] or * [x]
-  // Matches list items starting with list markers (optionally inside blockquotes)
-  const checkboxRegex = /^[>\s]*([-*+]|\d+[.)])\s+(\[[ xX]\])/mg;
-
-  let match: RegExpExecArray | null;
-  let count = 0;
-  let foundStart = -1;
-  let isChecked = false;
-  
-  while ((match = checkboxRegex.exec(masked)) !== null) {
-    if (count === index) {
-      const cb = match[2]; // The checkbox portion: '[ ]', '[x]', or '[X]'
-      foundStart = match.index + match[0].indexOf(cb);
-      isChecked = cb !== '[ ]';
-      break;
-    }
-    count++;
-  }
-  
-  if (foundStart !== -1) {
-    const newContent = 
-      original.substring(0, foundStart) + 
-      (isChecked ? '[ ]' : '[x]') + 
-      original.substring(foundStart + 3);
-    
-    editorStore.updateContent(newContent);
-  }
+  editorStore.updateContent(
+    original.substring(0, checkbox.markerStart)
+    + (checkbox.checked ? '[ ]' : '[x]')
+    + original.substring(checkbox.markerStart + 3),
+  );
 };
 
 // Intercept clicks in the preview (external links and checkboxes)
@@ -224,6 +203,7 @@ const handleLinkClick = async (e: MouseEvent) => {
   if (!href || href.startsWith('#')) return; // allow in-page anchors
 
   e.preventDefault();
+  if (!isAllowedExternalHref(href)) return;
   try {
     const { open } = await import('@tauri-apps/plugin-shell');
     await open(href);
@@ -242,26 +222,14 @@ const handleScroll = (e: Event) => {
   scrollHideTimer = setTimeout(() => el.classList.remove('is-scrolling'), SCROLL_HIDE_DELAY);
 };
 
-let themeMediaQuery: MediaQueryList | null = null;
-const handleSystemThemeChange = () => {
-  if (settingsStore.themeMode === 'system') {
-    lastRenderedHtml = '';
-    if (renderTimer) clearTimeout(renderTimer);
-    renderTimer = setTimeout(renderMarkdown, DEBOUNCE_MS);
-  }
-};
-
 onMounted(() => {
   setPreviewElement(previewRef.value);
-  themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  themeMediaQuery.addEventListener('change', handleSystemThemeChange);
 });
 
 onUnmounted(() => {
   if (renderTimer) clearTimeout(renderTimer);
   if (scrollHideTimer) clearTimeout(scrollHideTimer);
   setPreviewElement(null);
-  themeMediaQuery?.removeEventListener('change', handleSystemThemeChange);
 });
 </script>
 

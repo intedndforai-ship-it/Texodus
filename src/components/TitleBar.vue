@@ -8,14 +8,14 @@
 
     <!-- Right: View & Theme controls (moved from toolbar) -->
     <div class="titlebar-controls">
-      <FormatMenu @format="$emit('format', $event)" />
+      <FormatMenu @format="emit('format', $event)" />
 
       <button
         id="btn-sidebar"
         class="tb-btn icon-only"
         :class="{ active: sidebarVisible }"
         :title="sidebarVisible ? 'Hide Sidebar (Cmd/Ctrl+Alt+B)' : 'Show Sidebar (Cmd/Ctrl+Alt+B)'"
-        @click="$emit('toggle-sidebar')"
+        @click="emit('toggle-sidebar')"
       >
         <span class="tb-icon" :style="{ '--icon': `url(${iconSidebar})` }"></span>
       </button>
@@ -38,7 +38,7 @@
           class="tb-btn icon-only"
           :class="{ active: layoutMode === mode.value }"
           :title="mode.label"
-          @click="$emit('toggle-layout', mode.value)"
+          @click="emit('toggle-layout', mode.value)"
         >
           <span class="tb-icon" :style="{ '--icon': `url(${mode.icon})` }"></span>
         </button>
@@ -47,7 +47,7 @@
       <DocumentStatsMenu />
       <ExportMenu />
 
-      <button id="btn-theme" class="tb-btn icon-only" :title="`Theme: ${themeLabel}`" @click="$emit('cycle-theme')">
+      <button id="btn-theme" class="tb-btn icon-only" :title="`Theme: ${themeLabel}`" @click="emit('cycle-theme')">
         <span class="tb-icon" :style="{ '--icon': `url(${themeIcon})` }"></span>
       </button>
 
@@ -56,13 +56,14 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import SettingsMenu from './SettingsMenu.vue';
 import FormatMenu from './FormatMenu.vue';
 import DocumentStatsMenu from './DocumentStatsMenu.vue';
 import ExportMenu from './ExportMenu.vue';
 import { useDocumentSearch } from '../composables/useDocumentSearch';
+import { type LayoutMode, type ThemeMode } from '../stores/settings';
 
 import iconLayoutSplit from '../assets/icons/icons8-view-stream-100.png';
 import iconLayoutFocus from '../assets/icons/icons8-pencil-drawing-100.png';
@@ -73,19 +74,26 @@ import iconThemeDark from '../assets/icons/icons8-do-not-disturb-ios-100.png';
 import iconSidebar from '../assets/icons/icons8-sidebar-100.png';
 import iconSearch from '../assets/icons/icons8-search-100.png';
 
-const props = defineProps({
-  layoutMode: String,
-  themeMode: String,
-  sidebarVisible: Boolean,
-  title: { type: String, default: 'Texodus' },
+const props = withDefaults(defineProps<{
+  layoutMode: LayoutMode;
+  themeMode: ThemeMode;
+  sidebarVisible: boolean;
+  title?: string;
+}>(), {
+  title: 'Texodus',
 });
 
-defineEmits(['toggle-layout', 'toggle-sidebar', 'cycle-theme', 'format']);
+const emit = defineEmits<{
+  'toggle-layout': [mode: LayoutMode];
+  'toggle-sidebar': [];
+  'cycle-theme': [];
+  format: [command: string];
+}>();
 
 const { isOpen: searchOpen, open: openSearch, close: closeSearch } = useDocumentSearch();
 const toggleSearch = () => { if (searchOpen.value) closeSearch(); else openSearch(); };
 
-const layoutModes = [
+const layoutModes: { value: LayoutMode; label: string; icon: string }[] = [
   { value: 'split', label: 'Split View', icon: iconLayoutSplit },
   { value: 'focus', label: 'Editor Only (Focus Mode)', icon: iconLayoutFocus },
   { value: 'preview', label: 'Preview Only', icon: iconLayoutPreview },
@@ -106,17 +114,6 @@ const themeIcon = computed(() => {
 
 <style scoped>
 .titlebar {
-  /* Override user theme variables with native-looking default values based purely on OS theme */
-  --toolbar-bg: rgba(255, 255, 255, 0.85);
-  --border-color: #e2e5ea;
-  --text-color: #1a1d23;
-  --text-muted: #6b7280;
-  --accent-color: #6366f1;
-  --accent-subtle: rgba(99, 102, 241, 0.12);
-  --btn-hover: rgba(0, 0, 0, 0.05);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.22);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
-
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -129,19 +126,6 @@ const themeIcon = computed(() => {
   z-index: 20;
 }
 
-@media (prefers-color-scheme: dark) {
-  .titlebar {
-    --toolbar-bg: rgba(16, 18, 26, 0.88);
-    --border-color: #252836;
-    --text-color: #e2e4eb;
-    --text-muted: #6b7280;
-    --accent-color: #818cf8;
-    --accent-subtle: rgba(129, 140, 248, 0.15);
-    --btn-hover: rgba(255, 255, 255, 0.06);
-    --scrollbar-thumb: rgba(255, 255, 255, 0.22);
-    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
-  }
-}
 
 /* Glassmorphism */
 .glass {

@@ -31,7 +31,7 @@
           <div v-if="activeTab === 'info'" class="tab-pane info-pane">
             <p>A fast, native Markdown editor built with Tauri and Vue.</p>
             <div class="credits">
-              <p>Icons by <a href="https://icons8.com" target="_blank" rel="noopener">Icons8</a></p>
+              <p>Icons by <a href="https://icons8.com" rel="noopener" @click.prevent="openExternal('https://icons8.com')">Icons8</a></p>
               <p>&copy; 2026 Nick. All rights reserved.</p>
             </div>
           </div>
@@ -64,6 +64,15 @@ const appVersion = packageJson.version;
 const close = () => {
   settingsStore.setAboutVisible(false);
   activeTab.value = 'info';
+};
+
+const openExternal = async (url: string) => {
+  try {
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(url);
+  } catch {
+    // Ignore shell failures; the dialog itself stays usable.
+  }
 };
 </script>
 
