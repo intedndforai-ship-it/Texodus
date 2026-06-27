@@ -99,11 +99,10 @@ describe('editor store', () => {
   describe('closeOtherTabs', () => {
     it('removes every tab except the given one', () => {
       const store = useEditorStore();
-      const a = store.activeTabId;
+      const _a = store.activeTabId;
       const b = store.addTab({ content: 'b' });
-      const c = store.addTab({ content: 'c' });
+      const _c = store.addTab({ content: 'c' });
       store.closeOtherTabs(b);
-      expect(store.tabs).toHaveLength(1);
       expect(store.tabs[0].id).toBe(b);
       expect(store.activeTabId).toBe(b);
     });
@@ -114,9 +113,8 @@ describe('editor store', () => {
       const store = useEditorStore();
       const a = store.activeTabId;
       const b = store.addTab();
-      const c = store.addTab();
-      const d = store.addTab();
-      // Order: [a, b, c, d]
+      const _c = store.addTab();
+      const _d = store.addTab();
       store.closeTabsToTheRight(b);
       expect(store.tabs.map((t) => t.id)).toEqual([a, b]);
       expect(store.activeTabId).toBe(b);
@@ -128,6 +126,65 @@ describe('editor store', () => {
       const b = store.addTab();
       store.closeTabsToTheRight(b);
       expect(store.tabs.map((t) => t.id)).toEqual([a, b]);
+    });
+  });
+
+  describe('duplicateTab', () => {
+    it('creates a copy after the original and activates it', () => {
+      const store = useEditorStore();
+      store.loadFile('hello', '/tmp/a.md');
+      const a = store.activeTabId;
+      const dup = store.duplicateTab(a);
+      expect(dup).not.toBe(a);
+      expect(store.tabs).toHaveLength(2);
+      expect(store.tabs[0].id).toBe(a);
+      expect(store.tabs[1].id).toBe(dup);
+      expect(store.activeTabId).toBe(dup);
+    });
+
+    it('preserves content and filePath', () => {
+      const store = useEditorStore();
+      store.loadFile('world', '/tmp/note.md');
+      const a = store.activeTabId;
+      store.duplicateTab(a);
+      const dup = store.tabs[1];
+      expect(dup.content).toBe('world');
+      expect(dup.filePath).toBe('/tmp/note.md');
+      expect(dup.isDirty).toBe(false);
+    });
+
+    it('can duplicate a non-active tab', () => {
+      const store = useEditorStore();
+      const a = store.activeTabId;
+      store.addTab({ content: 'b' });
+      const b = store.activeTabId;
+      store.setActiveTab(a);
+      store.duplicateTab(b);
+      // [a, b, dup-of-b]
+      expect(store.tabs[1].id).toBe(b);
+      expect(store.tabs[2].content).toBe('b');
+    });
+  });
+
+  describe('moveTab', () => {
+    it('moves a tab before the target', () => {
+      const store = useEditorStore();
+      const a = store.activeTabId;
+      const b = store.addTab();
+      const c = store.addTab();
+      // [a, b, c] → move c before a → [c, a, b]
+      store.moveTab(c, a);
+      expect(store.tabs.map((t) => t.id)).toEqual([c, a, b]);
+    });
+
+    it('moves a tab to end when beforeId not found', () => {
+      const store = useEditorStore();
+        const a = store.activeTabId;
+        const b = store.addTab();
+        const c = store.addTab();
+        // [a, b, c] → move a before 'nonexistent' → [b, c, a]
+      store.moveTab(a, 'nonexistent');
+      expect(store.tabs.map((t) => t.id)).toEqual([b, c, a]);
     });
   });
 });

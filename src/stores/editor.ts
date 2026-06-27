@@ -106,6 +106,21 @@ export const useEditorStore = defineStore('editor', {
       this.activeTabId = tab.id;
       return tab.id;
     },
+    /** Creates a copy of the tab with the given id, inserts it after the
+     *  original, and activates the duplicate. */
+    duplicateTab(id: string): string {
+      const idx = this.tabs.findIndex((t) => t.id === id);
+      if (idx < 0) return '';
+      const source = this.tabs[idx];
+      const copy = createTab({
+        content: source.content,
+        filePath: source.filePath,
+        isDirty: source.isDirty,
+      });
+      this.tabs.splice(idx + 1, 0, copy);
+      this.activeTabId = copy.id;
+      return copy.id;
+    },
     setActiveTab(id: string) {
       if (this.tabs.some((t) => t.id === id)) this.activeTabId = id;
     },
@@ -144,6 +159,19 @@ export const useEditorStore = defineStore('editor', {
       if (this.tabs.length <= 1) return;
       const prev = (this.activeTabIndex - 1 + this.tabs.length) % this.tabs.length;
       this.activeTabId = this.tabs[prev].id;
+    },
+    /** Moves tab `id` to be immediately before `beforeId`, or to the end
+     *  if `beforeId` is not found. */
+    moveTab(id: string, beforeId: string) {
+      const fromIdx = this.tabs.findIndex((t) => t.id === id);
+      if (fromIdx < 0) return;
+      const [moved] = this.tabs.splice(fromIdx, 1);
+      const toIdx = this.tabs.findIndex((t) => t.id === beforeId);
+      if (toIdx < 0) {
+        this.tabs.push(moved);
+      } else {
+        this.tabs.splice(toIdx, 0, moved);
+      }
     },
     /** Removes every tab except the one with `id`. */
     closeOtherTabs(id: string) {
