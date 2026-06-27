@@ -68,7 +68,7 @@ const emit = defineEmits<{
 }
 
 .sidebar-context-menu__danger {
-  color: #d04b4b !important;
+  color: var(--danger-color) !important;
 }
 
 .sidebar-context-menu__separator {

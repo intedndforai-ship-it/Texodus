@@ -133,7 +133,7 @@ function handleClick() {
 
 .sidebar-node__button--drop-invalid {
   background: rgba(208, 75, 75, 0.12);
-  outline: 1px solid #d04b4b;
+  outline: 1px solid var(--danger-color);
 }
 
 .sidebar-node__chevron,

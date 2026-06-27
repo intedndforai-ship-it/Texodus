@@ -449,7 +449,7 @@ onUnmounted(() => {
 
 :deep(.mermaid-error-title) {
   font-weight: 700;
-  color: #ef4444;
+  color: var(--danger-color);
   font-size: 0.95rem;
 }
 

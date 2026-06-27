@@ -30,6 +30,8 @@ function loadPdfMake(): Promise<PdfMakeModule> {
   return pdfMakePromise;
 }
 
+const EXPORT_DANGER_COLOR = '#dc2626';
+
 const EXPORT_CSS = `
   body {
     max-width: 780px;
@@ -86,7 +88,7 @@ const EXPORT_CSS = `
     color: #1a1d23;
     font-family: inherit;
   }
-  .mermaid-error-title { font-weight: 600; color: #ef4444; margin-bottom: 0.5rem; font-size: 0.95rem; }
+  .mermaid-error-title { font-weight: 600; color: ${EXPORT_DANGER_COLOR}; margin-bottom: 0.5rem; font-size: 0.95rem; }
   .mermaid-error-text { margin: 0; padding: 0.75rem; background: rgba(0, 0, 0, 0.05); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; overflow-x: auto; white-space: pre-wrap; }
   @media print {
     body { margin: 0; padding: 0.5in; max-width: none; }

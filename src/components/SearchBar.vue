@@ -140,7 +140,7 @@ watch(() => [editorStore.content, editorStore.activeTabId], () => {
 }
 
 .searchbar-field.has-error {
-  border-color: #d04b4b;
+  border-color: var(--danger-color);
 }
 
 .searchbar-input {

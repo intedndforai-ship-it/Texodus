@@ -33,12 +33,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useEditorStore } from '../stores/editor';
 import { exportPdf, exportHtml, exportTxt } from '../services/exportService';
 import iconExport from '../assets/icons/icons8-export-100.png';
+import { isMac } from '../utils/platform';
 
 const isOpen = ref(false);
 const menuContainer = ref<HTMLElement | null>(null);
 const editorStore = useEditorStore();
 
-const isMac = navigator.userAgent.includes('Macintosh');
 const pdfShortcut = computed(() => isMac ? '⌘⇧P' : 'Ctrl+Shift+P');
 const htmlShortcut = computed(() => isMac ? '⌘⇧H' : 'Ctrl+Shift+H');
 const txtShortcut = computed(() => isMac ? '⌘⇧X' : 'Ctrl+Shift+X');

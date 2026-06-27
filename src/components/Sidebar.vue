@@ -442,6 +442,6 @@ async function openFile(path: string) {
 }
 
 .sidebar__state--error {
-  color: #d04b4b;
+  color: var(--danger-color);
 }
 </style>

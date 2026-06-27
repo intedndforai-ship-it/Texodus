@@ -45,6 +45,7 @@ const themeStyle = computed<Record<string, string>>(() => {
     '--text-color':             t.textColor,
     '--text-muted':             t.textMuted,
     '--accent-color':           t.accentColor,
+    '--danger-color':           t.dangerColor,
     '--accent-subtle':          t.accentSubtle,
     '--btn-hover':              t.btnHover,
     '--code-bg':                t.codeBg,

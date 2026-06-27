@@ -15,13 +15,13 @@ import type { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { invoke } from '@tauri-apps/api/core';
 import { basename } from '../utils/path';
+import { isMac } from '../utils/platform';
 
 type EditorStore = ReturnType<typeof useEditorStore>;
 
 // macOS hangs submenus under the global menu bar and expects an "app" submenu
 // (About / Hide / Quit) first; Windows/Linux render the menu in the window's
 // own bar and have no such submenu.
-const isMac = navigator.userAgent.includes('Macintosh');
 
 // Keep a global reference to prevent the menu (and its JS callbacks)
 // from being garbage collected by V8, which breaks menu actions on Windows.

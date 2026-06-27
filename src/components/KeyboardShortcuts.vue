@@ -6,10 +6,10 @@ import { onMounted, onUnmounted } from 'vue';
 import { useMarkdownPreview } from '../composables/useMarkdownPreview';
 import { useDocumentSearch } from '../composables/useDocumentSearch';
 import { applyFormat } from "../composables/useFormatting";
+import { isMac } from '../utils/platform';
 
 const { getEditorView } = useMarkdownPreview();
 const { open: openSearch } = useDocumentSearch();
-const isMac = navigator.userAgent.includes('Macintosh');
 
 interface ShortcutKey {
   meta?: boolean;
