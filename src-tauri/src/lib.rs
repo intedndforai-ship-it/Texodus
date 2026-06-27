@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone)]
 pub struct WindowStatus {
     pub file_path: Option<String>,
     pub is_dirty: bool,
@@ -85,7 +85,14 @@ fn build_window(app: &AppHandle, label: &str) {
         }
 
         if let Err(e) = win_builder.build() {
-            eprintln!("Failed to build window: {:?}", e);
+            eprintln!("Failed to build window {:?}: {}", label, e);
+            // Clean up pending files so they don't hang forever waiting
+            // for a window that will never mount and drain the queue.
+            if let Some(state) = app_handle.try_state::<AppState>() {
+                if let Ok(mut pending) = state.pending_files.lock() {
+                    pending.remove(&label);
+                }
+            }
         }
     });
 }
@@ -289,22 +296,31 @@ fn allow_asset_directory(app: tauri::AppHandle, path: String) -> Result<(), Stri
         .map_err(|e| e.to_string())
 }
 
+/// Cached system font list. `fontdb::Database::load_system_fonts()` is
+/// expensive (iterates all system font files); the result doesn't change
+/// during the app's lifetime, so we compute it once and reuse.
+static FONTS_CACHE: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+
 #[tauri::command]
 fn list_system_fonts() -> Vec<String> {
-    let mut db = fontdb::Database::new();
-    db.load_system_fonts();
+    FONTS_CACHE
+        .get_or_init(|| {
+            let mut db = fontdb::Database::new();
+            db.load_system_fonts();
 
-    let mut names = BTreeSet::new();
-    for face in db.faces() {
-        for (family, _) in &face.families {
-            let trimmed = family.trim();
-            if !trimmed.is_empty() {
-                names.insert(trimmed.to_string());
+            let mut names = BTreeSet::new();
+            for face in db.faces() {
+                for (family, _) in &face.families {
+                    let trimmed = family.trim();
+                    if !trimmed.is_empty() {
+                        names.insert(trimmed.to_string());
+                    }
+                }
             }
-        }
-    }
 
-    names.into_iter().collect()
+            names.into_iter().collect()
+        })
+        .clone()
 }
 
 #[tauri::command]
