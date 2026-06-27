@@ -24,7 +24,7 @@ import { setSearchHighlights } from './useCodeMirror';
 // through globalThis with narrow typing and feature-detect at runtime.
 const env = globalThis as unknown as {
   Highlight?: new (...ranges: Range[]) => unknown;
-  CSS?: { highlights?: { set(name: string, h: unknown): void; delete(name: string): void } };
+  CSS?: { highlights?: { set(name: string, h: unknown): void } };
 };
 const HighlightCtor = env.Highlight;
 const highlightsApi = env.CSS?.highlights;
@@ -165,17 +165,33 @@ function collectPreviewRanges(root: HTMLElement, re: RegExp): Range[] {
   return ranges;
 }
 
+// Force the preview to repaint from scratch. WKWebView repaints the
+// `::highlight()` layer when ranges are *added* (so matches appear), but does
+// not invalidate the previously painted pixels when the highlights are emptied
+// or deleted — leaving stale highlights after the search bar closes. Toggling
+// `display` evicts the element from the render tree and rebuilds it on restore,
+// which paints fresh from the current (now empty) highlight registry. The
+// toggle is synchronous, so the intermediate state is never painted (no flash);
+// we save/restore `scrollTop` because `display:none` resets it.
+function forcePreviewRepaint(): void {
+  const el = getPreviewElement();
+  if (!el) return;
+  const top = el.scrollTop;
+  const prev = el.style.display;
+  el.style.display = 'none';
+  void el.offsetHeight; // force reflow while detached
+  el.style.display = prev;
+  el.scrollTop = top;
+}
+
+// Empty the highlight registry. Keep the entries registered (deleting doesn't
+// repaint reliably on WKWebView). This alone does NOT clear the painted pixels
+// on WKWebView — callers that end with no matches must follow with
+// forcePreviewRepaint(); callers that immediately repaint ranges don't need to.
 function clearPreviewHighlights(): void {
-  if (!highlightsApi) return;
-  // Set empty Highlight objects first to force a visual repaint with zero
-  // ranges, then delete from the registry for cleanup. Some webviews don't
-  // trigger a repaint on `delete` alone.
-  if (HighlightCtor) {
-    highlightsApi.set(HL_ALL, new HighlightCtor());
-    highlightsApi.set(HL_CURRENT, new HighlightCtor());
-  }
-  highlightsApi.delete(HL_ALL);
-  highlightsApi.delete(HL_CURRENT);
+  if (!highlightsApi || !HighlightCtor) return;
+  highlightsApi.set(HL_ALL, new HighlightCtor());
+  highlightsApi.set(HL_CURRENT, new HighlightCtor());
 }
 
 function paintPreview(): void {
@@ -183,8 +199,7 @@ function paintPreview(): void {
   const current = previewMatches[currentIndex.value - 1];
   const others = previewMatches.filter((_, i) => i !== currentIndex.value - 1);
   highlightsApi.set(HL_ALL, new HighlightCtor(...others));
-  if (current) highlightsApi.set(HL_CURRENT, new HighlightCtor(current));
-  else highlightsApi.delete(HL_CURRENT);
+  highlightsApi.set(HL_CURRENT, current ? new HighlightCtor(current) : new HighlightCtor());
 }
 
 function scrollPreviewToCurrent(): void {
@@ -211,6 +226,7 @@ function applyPreview(reselect: boolean): void {
   if (previewMatches.length === 0) {
     currentIndex.value = 0;
     clearPreviewHighlights();
+    forcePreviewRepaint();
     return;
   }
   if (reselect || currentIndex.value < 1 || currentIndex.value > previewMatches.length) {
@@ -230,9 +246,10 @@ function paintPreviewAll(): void {
   const re = makeRegex();
   if (!re) return;
   previewMatches = collectPreviewRanges(el, re);
-  if (!HighlightCtor || !highlightsApi || previewMatches.length === 0) return;
+  if (!HighlightCtor || !highlightsApi) return;
+  if (previewMatches.length === 0) { forcePreviewRepaint(); return; }
   highlightsApi.set(HL_ALL, new HighlightCtor(...previewMatches));
-  highlightsApi.delete(HL_CURRENT);
+  highlightsApi.set(HL_CURRENT, new HighlightCtor());
 }
 
 // ── Orchestration ───────────────────────────────────────────────────────────
@@ -243,6 +260,7 @@ function apply(reselect: boolean): void {
   const view = getEditorView();
   if (!isOpen.value || !queryText.value.trim()) {
     if (view) view.dispatch({ effects: setSearchHighlights.of({ matches: [], current: -1 }) });
+    forcePreviewRepaint(); // clear stale preview highlights (close / empty query)
     editorMatches = [];
     previewMatches = [];
     matchCount.value = 0;
