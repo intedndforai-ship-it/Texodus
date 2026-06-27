@@ -1,12 +1,7 @@
 import { defineStore } from 'pinia';
+import { type FileTreeNode, findNode } from '../utils/workspaceTree';
 
-export interface FileTreeNode {
-  name: string;
-  path: string;
-  kind: 'file' | 'directory';
-  /** Undefined means directory children are not loaded yet. */
-  children?: FileTreeNode[];
-}
+export type { FileTreeNode };
 
 interface WorkspaceState {
   rootPath: string | null;
@@ -15,17 +10,6 @@ interface WorkspaceState {
   selectedPath: string | null;
   isLoading: boolean;
   error: string | null;
-}
-
-function findNode(nodes: FileTreeNode[], path: string): FileTreeNode | null {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.kind === 'directory' && node.children) {
-      const found = findNode(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
 }
 
 export const useWorkspaceStore = defineStore('workspace', {

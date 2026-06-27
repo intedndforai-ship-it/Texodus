@@ -53,14 +53,14 @@ const closeMenu = (e: MouseEvent) => {
   }
 };
 
-const triggerExport = (format: 'pdf' | 'html' | 'txt') => {
+const triggerExport = async (format: 'pdf' | 'html' | 'txt') => {
   isOpen.value = false;
   if (format === 'pdf') {
-    void exportPdf(editorStore.content, editorStore.filePath);
+    await exportPdf(editorStore.content, editorStore.filePath);
   } else if (format === 'html') {
-    void exportHtml(editorStore.content, editorStore.filePath);
+    await exportHtml(editorStore.content, editorStore.filePath);
   } else if (format === 'txt') {
-    void exportTxt(editorStore.content, editorStore.filePath);
+    await exportTxt(editorStore.content, editorStore.filePath);
   }
 };
 

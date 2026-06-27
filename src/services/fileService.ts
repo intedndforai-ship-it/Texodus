@@ -8,6 +8,9 @@ import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
 import { refreshWorkspaceTreeIfPathInside } from './workspaceService';
 import { allowAssetDirectoryForFile } from './assetScopeService';
 import { basename } from '../utils/path';
+import { showToast } from '../utils/toast';
+
+export { showToast };
 
 const FILE_FILTERS =[{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }];
 
@@ -123,7 +126,11 @@ export async function requestNewDocument(store: EditorStore): Promise<void> {
     store.addTab();
     await updateWindowTitle(store);
   } else {
-    void invoke('open_new_window');
+    try {
+      await invoke('open_new_window');
+    } catch (e) {
+      await showError('Failed to open new window', e);
+    }
   }
 }
 
@@ -137,7 +144,11 @@ export async function requestOpenDocument(store: EditorStore): Promise<void> {
     if (store.filePath || store.isDirty) {
       const selected = await open({ multiple: false, filters: FILE_FILTERS });
       if (!selected) return;
-      void invoke('open_new_window', { path: selected as string });
+      try {
+        await invoke('open_new_window', { path: selected as string });
+      } catch (e) {
+        await showError('Failed to open new window', e);
+      }
     } else {
       await openFile(store);
     }
@@ -162,7 +173,11 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
     }
   } else {
     if (store.filePath || store.isDirty) {
-      void invoke('open_new_window', { path });
+      try {
+        await invoke('open_new_window', { path });
+      } catch (e) {
+        await showError('Failed to open new window', e);
+      }
     } else {
       await loadFileFromPath(store, path);
     }
@@ -197,37 +212,7 @@ export async function updateWindowTitle(store: EditorStore): Promise<void> {
   }
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
-
-let toastContainer: HTMLElement | null = null;
-
-function getToastContainer(): HTMLElement {
-  if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'toast-container';
-    document.body.appendChild(toastContainer);
-  }
-  return toastContainer;
-}
-
-export function showToast(text: string, duration = 2500): void {
-  const container = getToastContainer();
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.textContent = text;
-  container.appendChild(toast);
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => toast.classList.add('toast--visible'));
-  });
-
-  setTimeout(() => {
-    toast.classList.remove('toast--visible');
-    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-  }, duration);
-}
-
-async function showError(title: string, err: unknown): Promise<void> {
+export async function showError(title: string, err: unknown): Promise<void> {
   const detail = err instanceof Error ? err.message : String(err);
   await message(`${title}: ${detail}`, { title: 'Error', kind: 'error' });
 }

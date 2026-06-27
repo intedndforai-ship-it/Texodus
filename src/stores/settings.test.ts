@@ -58,16 +58,20 @@ describe('settings store', () => {
     const store = useSettingsStore();
     store.setDocumentMode('tabs');
     store.setSettingsVisible(true);
+    store.setLayoutMode('focus');
     store.persist();
 
     const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!);
     expect(saved.documentMode).toBe('tabs');
     expect(saved).not.toHaveProperty('settingsVisible');
     expect(saved).not.toHaveProperty('systemFonts');
+    // layoutMode is per-window and must NOT be in the shared settings payload.
+    expect(saved).not.toHaveProperty('layoutMode');
   });
 
   it('reloadFromStorage picks up changes another window persisted', () => {
     const store = useSettingsStore();
+    store.setLayoutMode('focus');
     store.persist();
 
     const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!);
@@ -81,10 +85,13 @@ describe('settings store', () => {
     expect(store.fontSize).toBe(18);
     // Transient UI state must survive the reload.
     expect(store.settingsVisible).toBe(true);
+    // layoutMode is per-window — must NOT be overwritten by reloadFromStorage.
+    expect(store.layoutMode).toBe('focus');
   });
 
   it('falls back to defaults on corrupt stored JSON', () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, '{not json');
+    localStorage.setItem('texodus.layoutMode.v1', '{not json');
     const store = useSettingsStore();
     expect(store.documentMode).toBe('windows');
     expect(store.layoutMode).toBe('split');

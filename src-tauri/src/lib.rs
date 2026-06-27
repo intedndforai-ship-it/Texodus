@@ -93,8 +93,21 @@ fn build_window(app: &AppHandle, label: &str) {
 /// Returns true iff the main window is (or will be) empty and should receive
 /// the incoming file rather than have a new window spawned for it.
 fn main_window_is_empty(app: &AppHandle, state: &AppState) -> bool {
-    let windows = app.webview_windows();
+    let window_labels: Vec<String> = app.webview_windows().keys().cloned().collect();
+    let pending = state.pending_files.lock().unwrap();
+    let statuses = state.window_statuses.lock().unwrap();
+    is_main_window_empty(&window_labels, &pending, &statuses)
+}
 
+/// Pure logic extracted from `main_window_is_empty` for testability.
+///
+/// `window_labels` is the list of currently open webview window labels.
+/// `pending` and `statuses` are snapshots of the app state at call time.
+fn is_main_window_empty(
+    window_labels: &[String],
+    pending: &HashMap<String, Vec<String>>,
+    statuses: &HashMap<String, WindowStatus>,
+) -> bool {
     // Cold-start race on macOS: Cocoa's `applicationOpenURLs` fires (and
     // Tauri emits `RunEvent::Opened`) BEFORE the main window from
     // `tauri.conf.json` has been built. Without this branch we'd treat the
@@ -103,36 +116,27 @@ fn main_window_is_empty(app: &AppHandle, state: &AppState) -> bool {
     //
     // Main is guaranteed to be created by Tauri at startup, so it's safe to
     // queue `pending["main"]` here; the frontend drains it on mount.
-    if windows.is_empty() {
+    if window_labels.is_empty() {
         // Unless main already has a *different* pending file (e.g. Windows
         // seeded one from argv, or multiple Finder URLs arrived in this
         // launch), in which case let the caller spawn a separate window so
         // both files end up open.
-        let main_has_other_pending = state
-            .pending_files
-            .lock()
-            .map(|p| p.get("main").is_some_and(|q| !q.is_empty()))
-            .unwrap_or(false);
+        let main_has_other_pending = pending
+            .get("main")
+            .is_some_and(|q| !q.is_empty());
         return !main_has_other_pending;
     }
 
-    if windows.len() != 1 || !windows.contains_key("main") {
+    if window_labels.len() != 1 || !window_labels.iter().any(|l| l == "main") {
         return false;
     }
-    let has_pending = state
-        .pending_files
-        .lock()
-        .map(|p| p.get("main").is_some_and(|q| !q.is_empty()))
-        .unwrap_or(true);
+    let has_pending = pending
+        .get("main")
+        .is_some_and(|q| !q.is_empty());
     if has_pending {
         return false;
     }
-    let status = state
-        .window_statuses
-        .lock()
-        .ok()
-        .and_then(|s| s.get("main").cloned());
-    match status {
+    match statuses.get("main") {
         None => true,
         Some(s) => s.file_path.is_none() && !s.is_dirty,
     }
@@ -142,19 +146,41 @@ fn main_window_is_empty(app: &AppHandle, state: &AppState) -> bool {
 /// tab. Picks the focused window, falling back to `main`, then any window.
 /// Returns `None` when no window exists yet (cold start).
 fn target_window_label(app: &AppHandle) -> Option<String> {
-    let windows = app.webview_windows();
+    let windows: Vec<(String, bool)> = app
+        .webview_windows()
+        .iter()
+        .map(|(label, win)| (label.clone(), win.is_focused().unwrap_or(false)))
+        .collect();
+    pick_target_window_label(&windows)
+}
+
+/// Pure logic extracted from `target_window_label` for testability.
+///
+/// `windows` is a list of (label, is_focused) pairs for all open webview
+/// windows. Returns the label of the window that should receive a new tab,
+/// or `None` if no windows exist.
+fn pick_target_window_label(windows: &[(String, bool)]) -> Option<String> {
     if windows.is_empty() {
         return None;
     }
-    for (label, win) in &windows {
-        if win.is_focused().unwrap_or(false) {
+    // Prefer the focused window.
+    for (label, is_focused) in windows {
+        if *is_focused {
             return Some(label.clone());
         }
     }
-    if windows.contains_key("main") {
-        return Some("main".to_string());
+    // Fall back to "main" if it exists.
+    if let Some((label, _)) = windows.iter().find(|(l, _)| l == "main") {
+        return Some(label.clone());
     }
-    windows.keys().next().cloned()
+    // Last resort: the first window.
+    windows.first().map(|(l, _)| l.clone())
+}
+
+/// Pure helper: checks whether `path` is already queued in any window's
+/// pending-files list. Used for idempotency in `handle_incoming_file`.
+fn is_path_already_pending(path: &str, pending: &HashMap<String, Vec<String>>) -> bool {
+    pending.values().any(|q| q.contains(&path.to_string()))
 }
 
 fn handle_incoming_file(app: &AppHandle, path: String) {
@@ -168,7 +194,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
     let already_handled = state
         .pending_files
         .lock()
-        .map(|p| p.values().any(|q| q.contains(&path)))
+        .map(|p| is_path_already_pending(&path, &p))
         .unwrap_or(false);
     if already_handled {
         if let Some(win) = app.get_webview_window("main") {
@@ -424,5 +450,160 @@ mod tests {
     fn extract_file_returns_none_without_a_supported_path() {
         let args = vec!["texodus".to_string(), "--verbose".to_string()];
         assert_eq!(extract_file_from_args(args), None);
+    }
+
+    // ── is_main_window_empty ─────────────────────────────────────────────
+
+    fn empty_status() -> WindowStatus {
+        WindowStatus { file_path: None, is_dirty: false }
+    }
+
+    fn dirty_status() -> WindowStatus {
+        WindowStatus { file_path: Some("/tmp/x.md".to_string()), is_dirty: true }
+    }
+
+    #[test]
+    fn main_window_empty_when_no_windows_and_no_pending() {
+        let pending = HashMap::new();
+        let statuses = HashMap::new();
+        assert!(is_main_window_empty(&[], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_when_no_windows_but_main_has_pending() {
+        let mut pending = HashMap::new();
+        pending.insert("main".to_string(), vec!["/tmp/a.md".to_string()]);
+        let statuses = HashMap::new();
+        assert!(!is_main_window_empty(&[], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_empty_with_single_main_no_pending_no_status() {
+        let pending = HashMap::new();
+        let statuses = HashMap::new();
+        assert!(is_main_window_empty(&["main".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_empty_with_single_main_no_pending_empty_status() {
+        let pending = HashMap::new();
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), empty_status());
+        assert!(is_main_window_empty(&["main".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_with_dirty_main() {
+        let pending = HashMap::new();
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), dirty_status());
+        assert!(!is_main_window_empty(&["main".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_with_pending_file() {
+        let mut pending = HashMap::new();
+        pending.insert("main".to_string(), vec!["/tmp/a.md".to_string()]);
+        let statuses = HashMap::new();
+        assert!(!is_main_window_empty(&["main".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_with_multiple_windows() {
+        let pending = HashMap::new();
+        let statuses = HashMap::new();
+        assert!(!is_main_window_empty(&["main".to_string(), "window_0".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_with_only_non_main_window() {
+        let pending = HashMap::new();
+        let statuses = HashMap::new();
+        assert!(!is_main_window_empty(&["window_0".to_string()], &pending, &statuses));
+    }
+
+    #[test]
+    fn main_window_not_empty_with_file_loaded_but_not_dirty() {
+        let pending = HashMap::new();
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), WindowStatus {
+            file_path: Some("/tmp/loaded.md".to_string()),
+            is_dirty: false,
+        });
+        assert!(!is_main_window_empty(&["main".to_string()], &pending, &statuses));
+    }
+
+    // ── pick_target_window_label ────────────────────────────────────────
+
+    #[test]
+    fn target_window_none_when_no_windows() {
+        assert_eq!(pick_target_window_label(&[]), None);
+    }
+
+    #[test]
+    fn target_window_prefers_focused() {
+        let windows = vec![
+            ("main".to_string(), false),
+            ("window_0".to_string(), true),
+        ];
+        assert_eq!(pick_target_window_label(&windows), Some("window_0".to_string()));
+    }
+
+    #[test]
+    fn target_window_falls_back_to_main() {
+        let windows = vec![
+            ("window_0".to_string(), false),
+            ("main".to_string(), false),
+        ];
+        assert_eq!(pick_target_window_label(&windows), Some("main".to_string()));
+    }
+
+    #[test]
+    fn target_window_falls_back_to_first_when_no_main_no_focus() {
+        let windows = vec![
+            ("window_0".to_string(), false),
+            ("window_1".to_string(), false),
+        ];
+        assert_eq!(pick_target_window_label(&windows), Some("window_0".to_string()));
+    }
+
+    #[test]
+    fn target_window_main_takes_priority_over_first_even_if_first() {
+        let windows = vec![
+            ("main".to_string(), false),
+            ("window_0".to_string(), false),
+        ];
+        assert_eq!(pick_target_window_label(&windows), Some("main".to_string()));
+    }
+
+    // ── is_path_already_pending ─────────────────────────────────────────
+
+    #[test]
+    fn already_pending_detected() {
+        let mut pending = HashMap::new();
+        pending.insert("main".to_string(), vec!["/tmp/a.md".to_string(), "/tmp/b.md".to_string()]);
+        assert!(is_path_already_pending("/tmp/a.md", &pending));
+        assert!(is_path_already_pending("/tmp/b.md", &pending));
+    }
+
+    #[test]
+    fn not_pending_when_absent() {
+        let mut pending = HashMap::new();
+        pending.insert("main".to_string(), vec!["/tmp/a.md".to_string()]);
+        assert!(!is_path_already_pending("/tmp/c.md", &pending));
+    }
+
+    #[test]
+    fn not_pending_when_empty() {
+        let pending = HashMap::new();
+        assert!(!is_path_already_pending("/tmp/any.md", &pending));
+    }
+
+    #[test]
+    fn already_pending_checks_all_windows() {
+        let mut pending = HashMap::new();
+        pending.insert("main".to_string(), vec!["/tmp/a.md".to_string()]);
+        pending.insert("window_0".to_string(), vec!["/tmp/b.md".to_string()]);
+        assert!(is_path_already_pending("/tmp/b.md", &pending));
     }
 }

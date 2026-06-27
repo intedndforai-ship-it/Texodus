@@ -3,7 +3,8 @@ import { readDir } from '@tauri-apps/plugin-fs';
 import { type FileTreeNode, useWorkspaceStore } from '../stores/workspace';
 import { useSettingsStore } from '../stores/settings';
 import { allowAssetDirectory } from './assetScopeService';
-import { dirname, resolveLocalPath } from '../utils/path';
+import { findNode } from '../utils/workspaceTree';
+import { dirname, normalizePath, resolveLocalPath } from '../utils/path';
 
 const VISIBLE_FILE_EXTENSIONS = /\.(md|markdown|txt)$/i;
 const IGNORED_DIRECTORIES = new Set(['.git', '.obsidian', 'node_modules', 'dist', 'target']);
@@ -123,25 +124,10 @@ function getParentDirectoriesInsideWorkspace(filePath: string, rootPath: string)
   return dirs;
 }
 
-function findNode(nodes: FileTreeNode[], path: string): FileTreeNode | null {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.kind === 'directory' && node.children) {
-      const found = findNode(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 function isPathInsideWorkspace(path: string, rootPath: string): boolean {
   const normalizedPath = normalizePath(path);
   const normalizedRoot = normalizePath(rootPath);
   return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`);
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '');
 }
 
 async function readDirectoryNodes(directoryPath: string): Promise<FileTreeNode[]> {

@@ -1,12 +1,12 @@
 import { mkdir, remove, rename, stat, writeTextFile } from '@tauri-apps/plugin-fs';
 import { confirm, message } from '@tauri-apps/plugin-dialog';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useEditorStore } from '../stores/editor';
 import { type FileTreeNode, useWorkspaceStore } from '../stores/workspace';
 import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
-import { basename, dirname, isSameOrInside, normalizePath, resolveLocalPath } from '../utils/path';
+import { dirname, isSameOrInside, normalizePath, resolveLocalPath } from '../utils/path';
 import { expandAndLoadParentDirectories, refreshWorkspaceTree } from './workspaceService';
+import { updateWindowTitle } from './fileService';
 
 async function ensurePathDoesNotExist(path: string): Promise<boolean> {
   try {
@@ -98,17 +98,6 @@ function replaceOpenDocumentPathPrefix(oldPath: string, newPath: string): void {
   }
 }
 
-async function updateWindowTitle(): Promise<void> {
-  const editorStore = useEditorStore();
-  try {
-    const name = editorStore.filePath ? basename(editorStore.filePath) : 'Untitled';
-    const dirtyMark = editorStore.isDirty ? '* ' : '';
-    await getCurrentWindow().setTitle(`${dirtyMark}${name}`);
-  } catch {
-    // Non-critical.
-  }
-}
-
 async function refreshAndReveal(path: string): Promise<void> {
   const workspaceStore = useWorkspaceStore();
   if (!workspaceStore.rootPath) return;
@@ -158,7 +147,7 @@ export async function renameWorkspaceNode(node: FileTreeNode, nextName: string):
     await rename(node.path, nextPath);
     replaceExpandedPathPrefix(node.path, nextPath);
     replaceOpenDocumentPathPrefix(node.path, nextPath);
-    await updateWindowTitle();
+    await updateWindowTitle(useEditorStore());
     await refreshAndReveal(nextPath);
   } catch (e) {
     await message(`Failed to rename: ${e instanceof Error ? e.message : String(e)}`, { title: 'Error', kind: 'error' });
@@ -182,7 +171,7 @@ export async function moveWorkspaceNode(source: FileTreeNode, targetDirectoryPat
     await rename(source.path, nextPath);
     replaceExpandedPathPrefix(source.path, nextPath);
     replaceOpenDocumentPathPrefix(source.path, nextPath);
-    await updateWindowTitle();
+    await updateWindowTitle(useEditorStore());
     await refreshAndReveal(nextPath);
   } catch (e) {
     await message(`Failed to move: ${e instanceof Error ? e.message : String(e)}`, { title: 'Error', kind: 'error' });
@@ -206,7 +195,7 @@ export async function deleteWorkspaceNode(node: FileTreeNode): Promise<void> {
     removeExpandedPathPrefix(node.path);
     if (editorStore.filePath && isSameOrInside(editorStore.filePath, node.path)) {
       editorStore.reset();
-      await updateWindowTitle();
+      await updateWindowTitle(editorStore);
     }
     const parent = dirname(node.path);
     await refreshAndReveal(parent);

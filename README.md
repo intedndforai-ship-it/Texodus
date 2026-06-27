@@ -15,6 +15,8 @@ Download the latest release from the [releases page](https://github.com/w512/tex
 -   **Mermaid Diagrams**: Render flowcharts, sequence diagrams, and other Mermaid graph types inline in the preview, themed to match the active color scheme.
 -   **Local Images**: Embed images with relative (`![](images/foo.png)`) or absolute filesystem paths — resolved against the open document's directory via Tauri's asset protocol.
 -   **Export**: Save the current document as standalone HTML or PDF.
+-   **Workspace Sidebar**: Open a folder to browse its Markdown files in a lazy-loaded tree, with a context menu to create, rename, delete, and reveal files.
+-   **Document Search**: A full-width find bar (`Cmd/Ctrl+F`) with live match counts and case-sensitive, whole-word, and regular-expression toggles — works in both the editor and the live preview, with a configurable highlight color.
 -   **Multi-Document & Multi-Window**: Open multiple documents in a new tabbed interface or separate native windows.
 -   **Auto-Reload**: Files are automatically reloaded when they are changed on disk by external programs.
 -   **Settings Mode**: A dedicated settings mode for easier configuration.
@@ -93,7 +95,7 @@ Linux builds produce `.deb`, `.AppImage`, and `.rpm` packages; macOS produces `.
     -   `components/`: Reusable Vue components.
     -   `composables/`: Shared logic (CodeMirror, native menus, formatting, scroll sync).
     -   `services/`: Core application services (file I/O, export, Mermaid, sanitization).
-    -   `stores/`: Pinia state management (editor + settings).
+    -   `stores/`: Pinia state management (editor, settings, workspace).
     -   `themes/`: Color scheme definitions and Prism stylesheet.
     -   `utils/`: Path helpers and other small utilities.
 -   `src-tauri/`: Rust backend and Tauri configuration.

@@ -7,6 +7,7 @@ import {
   requestOpenDocument,
   requestOpenFromPath,
   requestCloseDocument,
+  showError,
 } from '../services/fileService';
 import { exportPdf, exportHtml, exportTxt } from "../services/exportService";
 import { openWorkspaceFolder } from '../services/workspaceService';
@@ -90,7 +91,10 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
       id: 'file-new',
       text: 'New Window',
       accelerator: 'CmdOrCtrl+N',
-      action: () => { void invoke('open_new_window'); },
+      action: async () => {
+        try { await invoke('open_new_window'); }
+        catch (e) { await showError('Failed to open new window', e); }
+      },
     }),
     await MenuItem.new({
       id: 'file-open',
@@ -137,19 +141,19 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
       id: 'file-export-pdf',
       text: 'Export as PDF…',
       accelerator: 'CmdOrCtrl+Shift+P',
-      action: () => { void exportPdf(store.content, store.filePath); },
+      action: async () => { await exportPdf(store.content, store.filePath); },
     }),
     await MenuItem.new({
       id: 'file-export-html',
       text: 'Export as HTML…',
       accelerator: 'CmdOrCtrl+Shift+H',
-      action: () => { void exportHtml(store.content, store.filePath); },
+      action: async () => { await exportHtml(store.content, store.filePath); },
     }),
     await MenuItem.new({
       id: 'file-export-txt',
       text: 'Export as TXT…',
       accelerator: 'CmdOrCtrl+Shift+X',
-      action: () => { void exportTxt(store.content, store.filePath); },
+      action: async () => { await exportTxt(store.content, store.filePath); },
     }),
     await PredefinedMenuItem.new({ item: 'Separator' }),
     await MenuItem.new({

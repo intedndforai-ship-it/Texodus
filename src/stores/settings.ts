@@ -50,8 +50,12 @@ export const LINE_HEIGHT_MAX = LINE_HEIGHTS[LINE_HEIGHTS.length - 1];
 
 const RECENT_FILES_MAX = 10;
 
+/** Separate localStorage key for the default layout mode of new windows.
+ *  Not synced via the `storage` event — each open window keeps its own mode. */
+const LAYOUT_MODE_STORAGE_KEY = 'texodus.layoutMode.v1';
+const DEFAULT_LAYOUT_MODE: LayoutMode = 'split';
+
 interface PersistedSettings {
-  layoutMode: LayoutMode;
   themeMode: ThemeMode;
   colorScheme: ColorSchemeId;
   editorFont: string;
@@ -68,6 +72,8 @@ interface PersistedSettings {
 }
 
 interface SettingsState extends PersistedSettings {
+  /** Per-window layout mode — not synced across open windows. */
+  layoutMode: LayoutMode;
   settingsVisible: boolean;
   aboutVisible: boolean;
   systemFonts: string[];
@@ -76,7 +82,6 @@ interface SettingsState extends PersistedSettings {
 
 export const SETTINGS_STORAGE_KEY = 'texodus.settings.v1';
 const DEFAULTS: PersistedSettings = {
-  layoutMode: 'split',
   themeMode: 'system',
   colorScheme: 'default',
   editorFont: EDITOR_FONTS[0].value,
@@ -104,9 +109,25 @@ function loadPersisted(): PersistedSettings {
   }
 }
 
+function loadLayoutMode(): LayoutMode {
+  if (typeof localStorage === 'undefined') return DEFAULT_LAYOUT_MODE;
+  try {
+    const raw = localStorage.getItem(LAYOUT_MODE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as LayoutMode;
+    // Backward-compat: read from the old shared settings key before the split.
+    const legacy = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as Partial<PersistedSettings & { layoutMode?: LayoutMode }>;
+      if (parsed.layoutMode) return parsed.layoutMode;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_LAYOUT_MODE;
+}
+
 function loadFromStorage(): SettingsState {
   return {
     ...loadPersisted(),
+    layoutMode: loadLayoutMode(),
     settingsVisible: false,
     aboutVisible: false,
     systemFonts: [],
@@ -117,7 +138,13 @@ function loadFromStorage(): SettingsState {
 export const useSettingsStore = defineStore('settings', {
   state: (): SettingsState => loadFromStorage(),
   actions: {
-    setLayoutMode(mode: LayoutMode) { this.layoutMode = mode; },
+    setLayoutMode(mode: LayoutMode) {
+      this.layoutMode = mode;
+      // Persist separately so new windows inherit the last-used mode,
+      // without syncing to already-open windows.
+      try { localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, JSON.stringify(mode)); }
+      catch { /* quota */ }
+    },
     setThemeMode(mode: ThemeMode) { this.themeMode = mode; },
     setColorScheme(id: ColorSchemeId) { this.colorScheme = id; },
     setDocumentMode(mode: DocumentMode) { this.documentMode = mode; },
@@ -173,6 +200,7 @@ export const useSettingsStore = defineStore('settings', {
           aboutVisible: _a,
           systemFonts: _sf,
           systemFontsLoaded: _sfl,
+          layoutMode: _lm,
           ...toSave
         } = this.$state;
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toSave));

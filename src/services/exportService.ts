@@ -1,9 +1,10 @@
-import { save } from "@tauri-apps/plugin-dialog";
+import { save, message } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
 import { type Token, type Tokens } from "marked";
 import type { Content, TDocumentDefinitions } from "pdfmake/interfaces";
 import { lexMarkdown, renderMarkdownToHtml, sanitizeMarkdownHtml } from "./markdownSanitizer";
 import { renderMermaidBlocks, renderMermaidSvg } from "./mermaidRenderer";
+import { showToast } from "../utils/toast";
 
 type PdfMakeModule = {
   createPdf: (def: TDocumentDefinitions) => { getBlob: () => Promise<Blob> };
@@ -158,9 +159,11 @@ export async function exportHtml(markdown: string, filePath: string | null): Pro
     if (!savePath) return false;
 
     await writeTextFile(savePath as string, html);
+    showToast('Exported as HTML');
     return true;
   } catch (e) {
     console.error("HTML export failed:", e);
+    await message(`HTML export failed: ${e instanceof Error ? e.message : String(e)}`, { title: 'Export Error', kind: 'error' });
     return false;
   }
 }
@@ -180,9 +183,11 @@ export async function exportTxt(markdown: string, filePath: string | null): Prom
     if (!savePath) return false;
 
     await writeTextFile(savePath as string, markdown);
+    showToast('Exported as TXT');
     return true;
   } catch (e) {
     console.error("TXT export failed:", e);
+    await message(`TXT export failed: ${e instanceof Error ? e.message : String(e)}`, { title: 'Export Error', kind: 'error' });
     return false;
   }
 }
@@ -501,9 +506,11 @@ export async function exportPdf(markdown: string, filePath: string | null): Prom
     const blob = await pdfMake.createPdf(docDef).getBlob();
     const bytes = new Uint8Array(await blob.arrayBuffer());
     await writeFile(savePath as string, bytes);
+    showToast('Exported as PDF');
     return true;
   } catch (e) {
     console.error("PDF export failed:", e);
+    await message(`PDF export failed: ${e instanceof Error ? e.message : String(e)}`, { title: 'Export Error', kind: 'error' });
     return false;
   }
 }
