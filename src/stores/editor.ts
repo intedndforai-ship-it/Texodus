@@ -145,5 +145,19 @@ export const useEditorStore = defineStore('editor', {
       const prev = (this.activeTabIndex - 1 + this.tabs.length) % this.tabs.length;
       this.activeTabId = this.tabs[prev].id;
     },
+    /** Removes every tab except the one with `id`. */
+    closeOtherTabs(id: string) {
+      this.tabs = this.tabs.filter((t) => t.id === id);
+      this.activeTabId = id;
+    },
+    /** Removes all tabs to the right of the one with `id`. */
+    closeTabsToTheRight(id: string) {
+      const idx = this.tabs.findIndex((t) => t.id === id);
+      if (idx < 0) return;
+      this.tabs = this.tabs.slice(0, idx + 1);
+      if (!this.tabs.some((t) => t.id === this.activeTabId)) {
+        this.activeTabId = id;
+      }
+    },
   },
 });

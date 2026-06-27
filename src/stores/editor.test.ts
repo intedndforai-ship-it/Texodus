@@ -95,4 +95,39 @@ describe('editor store', () => {
     expect(store.isDirty).toBe(false);
     expect(store.anyTabDirty).toBe(true);
   });
+
+  describe('closeOtherTabs', () => {
+    it('removes every tab except the given one', () => {
+      const store = useEditorStore();
+      const a = store.activeTabId;
+      const b = store.addTab({ content: 'b' });
+      const c = store.addTab({ content: 'c' });
+      store.closeOtherTabs(b);
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].id).toBe(b);
+      expect(store.activeTabId).toBe(b);
+    });
+  });
+
+  describe('closeTabsToTheRight', () => {
+    it('removes tabs after the given one', () => {
+      const store = useEditorStore();
+      const a = store.activeTabId;
+      const b = store.addTab();
+      const c = store.addTab();
+      const d = store.addTab();
+      // Order: [a, b, c, d]
+      store.closeTabsToTheRight(b);
+      expect(store.tabs.map((t) => t.id)).toEqual([a, b]);
+      expect(store.activeTabId).toBe(b);
+    });
+
+    it('does nothing when the tab is already last', () => {
+      const store = useEditorStore();
+      const a = store.activeTabId;
+      const b = store.addTab();
+      store.closeTabsToTheRight(b);
+      expect(store.tabs.map((t) => t.id)).toEqual([a, b]);
+    });
+  });
 });

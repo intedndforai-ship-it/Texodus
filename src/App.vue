@@ -63,21 +63,27 @@ import {
   showToast,
   requestOpenFromPath,
 } from './services/fileService';
-import { basename } from './utils/path';
+import { basename, resolveLocalPath } from './utils/path';
 import { applyFormat } from './composables/useFormatting';
 import { setupAppMenu } from './composables/useAppMenu';
 import { useMarkdownPreview } from './composables/useMarkdownPreview';
 import { promptUnsavedChanges } from './composables/useUnsavedPrompt';
 import { useFileWatch } from './composables/useFileWatch';
+import { restoreSession, useSessionRestore } from './composables/useSessionRestore';
+import { refreshWorkspaceTree } from './services/workspaceService';
+import { useWorkspaceStore } from './stores/workspace';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { copyFile } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 const settingsStore = useSettingsStore();
 const editorStore = useEditorStore();
+const workspaceStore = useWorkspaceStore();
 const { getEditorView } = useMarkdownPreview();
 useFileWatch(editorStore);
+useSessionRestore(editorStore);
 
 const handleFormat = (format: string) => applyFormat(format, getEditorView());
 
@@ -188,6 +194,13 @@ onMounted(async () => {
     console.warn('Native menu setup failed:', e);
   }
 
+  // Restore tabs from previous session before draining pending files.
+  try {
+    await restoreSession(editorStore);
+  } catch (e) {
+    console.warn('Session restore failed:', e);
+  }
+
   try {
     const win = getCurrentWindow();
     unlistenClose = await win.onCloseRequested(async (event) => {
@@ -232,6 +245,32 @@ onMounted(async () => {
     unlistenDrop = await webview.onDragDropEvent(async (event) => {
       if (event.payload.type !== 'drop') return;
       const paths = event.payload.paths ?? [];
+
+      // Check if the drop landed on the sidebar — if so, copy files into
+      // the workspace root instead of opening them.
+      const cssX = event.payload.position.x / window.devicePixelRatio;
+      const sidebarEl = document.querySelector('.sidebar-shell');
+      const onSidebar = settingsStore.sidebarVisible
+        && sidebarEl
+        && cssX <= sidebarEl.getBoundingClientRect().right;
+
+      if (onSidebar && workspaceStore.rootPath) {
+        const supported = paths.filter((p) => /\.(md|markdown|txt)$/i.test(p));
+        for (const p of supported) {
+          const dest = resolveLocalPath(workspaceStore.rootPath, basename(p));
+          try {
+            await copyFile(p, dest);
+          } catch {
+            // File may already exist at destination — skip silently.
+          }
+        }
+        if (supported.length > 0) {
+          showToast(`Copied ${supported.length} file${supported.length > 1 ? 's' : ''} to workspace`);
+          await refreshWorkspaceTree(workspaceStore.rootPath);
+        }
+        return;
+      }
+
       const target = paths.find((p) => /\.(md|markdown|txt)$/i.test(p));
       if (!target) return;
       await requestOpenFromPath(editorStore, target);

@@ -1,7 +1,8 @@
 <template>
   <div class="export-menu" ref="menuContainer">
-    <button class="trigger icon-only" @click="toggleMenu" title="Export Document">
-      <span class="trigger-icon" :style="{ '--icon': `url(${iconExport})` }"></span>
+    <button class="trigger icon-only" @click="toggleMenu" title="Export Document" :disabled="isExporting">
+      <span v-if="isExporting" class="trigger-spinner"></span>
+      <span v-else class="trigger-icon" :style="{ '--icon': `url(${iconExport})` }"></span>
     </button>
 
     <div v-if="isOpen" class="dropdown-menu">
@@ -36,6 +37,7 @@ import iconExport from '../assets/icons/icons8-export-100.png';
 import { isMac } from '../utils/platform';
 
 const isOpen = ref(false);
+const isExporting = ref(false);
 const menuContainer = ref<HTMLElement | null>(null);
 const editorStore = useEditorStore();
 
@@ -55,12 +57,17 @@ const closeMenu = (e: MouseEvent) => {
 
 const triggerExport = async (format: 'pdf' | 'html' | 'txt') => {
   isOpen.value = false;
-  if (format === 'pdf') {
-    await exportPdf(editorStore.content, editorStore.filePath);
-  } else if (format === 'html') {
-    await exportHtml(editorStore.content, editorStore.filePath);
-  } else if (format === 'txt') {
-    await exportTxt(editorStore.content, editorStore.filePath);
+  isExporting.value = true;
+  try {
+    if (format === 'pdf') {
+      await exportPdf(editorStore.content, editorStore.filePath);
+    } else if (format === 'html') {
+      await exportHtml(editorStore.content, editorStore.filePath);
+    } else if (format === 'txt') {
+      await exportTxt(editorStore.content, editorStore.filePath);
+    }
+  } finally {
+    isExporting.value = false;
   }
 };
 
@@ -120,6 +127,25 @@ onUnmounted(() => {
 
 .trigger:active {
   transform: scale(0.94);
+}
+
+.trigger:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.trigger-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid var(--text-muted);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: export-spin 0.7s linear infinite;
+}
+
+@keyframes export-spin {
+  to { transform: rotate(360deg); }
 }
 
 .dropdown-menu {

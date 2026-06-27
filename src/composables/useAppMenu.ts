@@ -199,6 +199,25 @@ export async function setupAppMenu(store: EditorStore): Promise<void> {
         accelerator: 'CmdOrCtrl+Alt+B',
         action: () => { settingsStore.toggleSidebar(); },
       }),
+      await PredefinedMenuItem.new({ item: 'Separator' }),
+      await MenuItem.new({
+        id: 'view-split',
+        text: 'Split View',
+        accelerator: 'CmdOrCtrl+Alt+S',
+        action: () => { settingsStore.setLayoutMode('split'); },
+      }),
+      await MenuItem.new({
+        id: 'view-focus-editor',
+        text: 'Focus Editor',
+        accelerator: 'CmdOrCtrl+Alt+E',
+        action: () => { settingsStore.setLayoutMode('focus'); },
+      }),
+      await MenuItem.new({
+        id: 'view-focus-preview',
+        text: 'Focus Preview',
+        accelerator: 'CmdOrCtrl+Alt+P',
+        action: () => { settingsStore.setLayoutMode('preview'); },
+      }),
     ],
   });
 

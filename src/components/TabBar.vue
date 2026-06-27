@@ -10,6 +10,7 @@
       :title="tab.filePath ? `${labelFor(tab)} — ${tab.filePath}` : 'Untitled'"
       @click="editorStore.setActiveTab(tab.id)"
       @mousedown.middle.prevent="onClose(tab.id, $event)"
+      @contextmenu.prevent="openContextMenu($event, tab.id)"
     >
       <span class="tab-label">{{ labelFor(tab) }}</span>
       <span v-if="tab.isDirty" class="tab-dirty" aria-label="Unsaved changes">●</span>
@@ -26,11 +27,28 @@
       aria-label="New Tab"
       @click="onNewTab"
     >+</button>
+    <div
+      v-if="contextMenu.visible"
+      class="tab-context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+    >
+      <div class="tab-context-item" @click="onContextClose">Close</div>
+      <div
+        v-if="editorStore.tabCount > 1"
+        class="tab-context-item"
+        @click="onContextCloseOthers"
+      >Close Other Tabs</div>
+      <div
+        v-if="hasTabsToRight"
+        class="tab-context-item"
+        @click="onContextCloseRight"
+      >Close Tabs to the Right</div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useEditorStore, type Tab } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
@@ -74,6 +92,74 @@ async function onNewTab() {
   editorStore.addTab();
   await updateWindowTitle(editorStore);
 }
+
+// ── Context menu ───────────────────────────────────────────────────────────
+
+const contextMenu = ref({ visible: false, x: 0, y: 0, tabId: '' });
+
+const hasTabsToRight = computed(() => {
+  if (!contextMenu.value.visible) return false;
+  const idx = editorStore.tabs.findIndex((t) => t.id === contextMenu.value.tabId);
+  return idx >= 0 && idx < editorStore.tabs.length - 1;
+});
+
+function openContextMenu(e: MouseEvent, tabId: string) {
+  contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, tabId };
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false;
+}
+
+async function onContextClose() {
+  const id = contextMenu.value.tabId;
+  closeContextMenu();
+  await onClose(id, new Event('click'));
+}
+
+async function onContextCloseOthers() {
+  const id = contextMenu.value.tabId;
+  closeContextMenu();
+
+  // Prompt for unsaved changes on dirty tabs that will be closed.
+  const dirtyTabs = editorStore.tabs.filter((t) => t.id !== id && t.isDirty);
+  for (const tab of dirtyTabs) {
+    editorStore.setActiveTab(tab.id);
+    const choice = await promptUnsavedChanges();
+    if (choice === 'cancel') return;
+    if (choice === 'save') {
+      const saved = await saveFile(editorStore);
+      if (!saved) return;
+    }
+  }
+
+  editorStore.closeOtherTabs(id);
+  await updateWindowTitle(editorStore);
+}
+
+async function onContextCloseRight() {
+  const id = contextMenu.value.tabId;
+  closeContextMenu();
+
+  const idx = editorStore.tabs.findIndex((t) => t.id === id);
+  const rightTabs = editorStore.tabs.slice(idx + 1);
+  for (const tab of rightTabs) {
+    if (!tab.isDirty) continue;
+    editorStore.setActiveTab(tab.id);
+    const choice = await promptUnsavedChanges();
+    if (choice === 'cancel') return;
+    if (choice === 'save') {
+      const saved = await saveFile(editorStore);
+      if (!saved) return;
+    }
+  }
+
+  editorStore.closeTabsToTheRight(id);
+  await updateWindowTitle(editorStore);
+}
+
+onMounted(() => document.addEventListener('click', closeContextMenu));
+onUnmounted(() => document.removeEventListener('click', closeContextMenu));
 </script>
 
 <style scoped>
@@ -177,6 +263,32 @@ async function onNewTab() {
 }
 
 .tab-add:hover {
+  background: var(--btn-hover);
+  color: var(--accent-color);
+}
+
+/* ── Context menu ─────────────────────────────────────────────────────── */
+
+.tab-context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.tab-context-item {
+  padding: 7px 16px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-color);
+  transition: background 0.1s;
+}
+
+.tab-context-item:hover {
   background: var(--btn-hover);
   color: var(--accent-color);
 }
