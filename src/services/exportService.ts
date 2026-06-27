@@ -127,6 +127,9 @@ ${finalBody}
 </html>`;
 }
 
+/** Escapes text for safe insertion into an HTML `<title>` element.
+ *  DOMPurify.sanitize is not suitable here — it strips tags rather than
+ *  escaping special characters, which would corrupt titles containing `<`. */
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

@@ -20,6 +20,7 @@ import { renderMermaidBlocks } from '../services/mermaidRenderer';
 import { type Token } from 'marked';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { dirname, hasUrlScheme, isAbsolutePath, resolveLocalPath } from '../utils/path';
+import { isAllowedExternalHref } from '../utils/link';
 import { collectMarkdownTaskCheckboxes } from '../utils/markdownTasks';
 
 const editorStore = useEditorStore();
@@ -78,16 +79,6 @@ function rewriteLocalImages(container: HTMLElement, filePath: string | null) {
     if (!isAbsolutePath(src) && !baseDir) continue;
     const abs = resolveLocalPath(baseDir, src);
     img.src = convertFileSrc(abs);
-  }
-}
-
-function isAllowedExternalHref(href: string): boolean {
-  if (!hasUrlScheme(href)) return false;
-  try {
-    const url = new URL(href);
-    return url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:';
-  } catch {
-    return false;
   }
 }
 

@@ -7,7 +7,7 @@
       :class="{ active: tab.id === editorStore.activeTabId }"
       role="tab"
       :aria-selected="tab.id === editorStore.activeTabId"
-      :title="tab.filePath || 'Untitled'"
+      :title="tab.filePath ? `${labelFor(tab)} — ${tab.filePath}` : 'Untitled'"
       @click="editorStore.setActiveTab(tab.id)"
       @mousedown.middle.prevent="onClose(tab.id, $event)"
     >

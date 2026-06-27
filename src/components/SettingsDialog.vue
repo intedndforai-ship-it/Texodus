@@ -209,6 +209,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
 .settings-dialog {
   width: 360px;
   max-width: 90vw;
+  max-height: 85vh;
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 16px;
@@ -272,6 +273,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-row {

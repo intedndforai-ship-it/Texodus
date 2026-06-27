@@ -78,7 +78,7 @@ export async function saveFile(store: EditorStore): Promise<boolean> {
 export async function saveFileAs(store: EditorStore): Promise<boolean> {
   try {
     const selected = await save({
-      filters: [{ name: 'Markdown', extensions: ['md'] }],
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
       defaultPath: store.filePath || 'untitled.md',
     });
     if (!selected) return false;

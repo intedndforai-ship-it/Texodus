@@ -151,7 +151,10 @@ export const useSettingsStore = defineStore('settings', {
     setSidebarVisible(v: boolean) { this.sidebarVisible = v; },
     toggleSidebar() { this.sidebarVisible = !this.sidebarVisible; },
     setSmoothScrollSync(v: boolean) { this.smoothScrollSync = v; },
-    setSearchHighlightColor(v: string) { this.searchHighlightColor = v; },
+    setSearchHighlightColor(v: string) {
+      const hex = v.trim();
+      if (/^[0-9a-fA-F]{6}$/.test(hex)) this.searchHighlightColor = hex;
+    },
     setSidebarWidth(width: number) {
       this.sidebarWidth = Math.max(220, Math.min(420, Math.round(width)));
     },

@@ -61,7 +61,6 @@ export function applyFormat(format: string, view: EditorView | null): void {
     case 'heading4':       prependLine(view, '#### '); break;
     case 'heading5':       prependLine(view, '##### '); break;
     case 'heading6':       prependLine(view, '###### '); break;
-    case 'heading':        prependLine(view, '## '); break; // Legacy fallback
     case 'paragraph':      wrapSelection(view, '\n\n', '', ''); break;
     case 'horizontal_rule': wrapSelection(view, '\n\n---\n\n', '', ''); break;
   }

@@ -1,13 +1,17 @@
 <template>
-  <div class="editor-container" :class="layoutMode">
+  <div class="editor-container" :class="layoutMode" ref="containerRef">
     <Transition name="panel">
-      <div v-if="layoutMode !== 'preview'" class="editor-pane">
+      <div v-if="layoutMode !== 'preview'" class="editor-pane" :style="paneStyle">
         <slot name="editor"></slot>
       </div>
     </Transition>
-    <div class="pane-divider" v-if="layoutMode === 'split'"></div>
+    <div
+      v-if="layoutMode === 'split'"
+      class="pane-divider"
+      @mousedown="startDrag"
+    ></div>
     <Transition name="panel">
-      <div v-if="layoutMode !== 'focus'" class="preview-pane">
+      <div v-if="layoutMode !== 'focus'" class="preview-pane" :style="paneStyle">
         <slot name="preview"></slot>
       </div>
     </Transition>
@@ -15,11 +19,51 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue';
 import { type LayoutMode } from '../stores/settings';
 
-defineProps<{
+const props = defineProps<{
   layoutMode: LayoutMode;
 }>();
+
+const containerRef = ref<HTMLElement | null>(null);
+const splitRatio = ref(0.5);
+
+const paneStyle = computed(() => {
+  if (props.layoutMode !== 'split') return {};
+  return { flex: `0 0 ${splitRatio.value * 100}%` };
+});
+
+// ── Draggable divider ────────────────────────────────────────────────────
+
+function startDrag(e: MouseEvent) {
+  e.preventDefault();
+  const container = containerRef.value;
+  if (!container) return;
+
+  const rect = container.getBoundingClientRect();
+  const onMove = (ev: MouseEvent) => {
+    const x = ev.clientX - rect.left;
+    const ratio = Math.max(0.15, Math.min(0.85, x / rect.width));
+    splitRatio.value = ratio;
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  };
+
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Reset ratio when leaving split mode so it starts fresh next time.
+watch(() => props.layoutMode, (mode) => {
+  if (mode !== 'split') splitRatio.value = 0.5;
+});
 </script>
 
 <style scoped>
@@ -42,10 +86,18 @@ defineProps<{
 
 /* Resize divider */
 .pane-divider {
-  width: 1px;
+  width: 5px;
   background: var(--border-color);
   flex-shrink: 0;
-  transition: background 0.25s;
+  cursor: col-resize;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 1;
+}
+
+.pane-divider:hover,
+.pane-divider:active {
+  background: var(--accent-color);
 }
 
 /* Single-pane modes: pane spans the full window so the scroll container
