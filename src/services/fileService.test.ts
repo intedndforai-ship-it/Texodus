@@ -1,39 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
+import { setMockFile, setMockInvoke, resetMockTauri } from '../mock-tauri';
 
-// Mock Tauri plugins
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  readTextFile: vi.fn(),
-  writeTextFile: vi.fn(),
-}));
-
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  open: vi.fn(),
-  save: vi.fn(),
-  message: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: vi.fn(() => ({
-    setTitle: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
-}));
-
-// Mock workspaceService to avoid Tauri calls
+// Mock workspaceService and assetScopeService (non-Tauri deps)
 vi.mock('./workspaceService', () => ({
   refreshWorkspaceTreeIfPathInside: vi.fn().mockResolvedValue(undefined),
 }));
-
-// Mock assetScopeService
 vi.mock('./assetScopeService', () => ({
   allowAssetDirectoryForFile: vi.fn().mockResolvedValue(undefined),
 }));
-
-// Mock useUnsavedPrompt
 vi.mock('../composables/useUnsavedPrompt', () => ({
   promptUnsavedChanges: vi.fn().mockResolvedValue('discard'),
 }));
@@ -56,11 +31,9 @@ const mockedReadTextFile = vi.mocked(readTextFile);
 const mockedWriteTextFile = vi.mocked(writeTextFile);
 const mockedOpen = vi.mocked(open);
 const mockedSave = vi.mocked(save);
-const mockedInvoke = vi.mocked(invoke);
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  vi.clearAllMocks();
 });
 
 describe('saveFile', () => {
@@ -154,12 +127,12 @@ describe('requestNewDocument (windows mode)', () => {
     const store = useEditorStore();
     // windows mode is the default
     await requestNewDocument(store);
-    expect(mockedInvoke).toHaveBeenCalledWith('open_new_window');
+    expect(invoke).toHaveBeenCalledWith('open_new_window');
   });
 
   it('shows error dialog when invoke fails', async () => {
     const store = useEditorStore();
-    mockedInvoke.mockRejectedValueOnce(new Error('Window creation failed'));
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Window creation failed'));
     await requestNewDocument(store);
     expect(message).toHaveBeenCalled();
   });
@@ -173,7 +146,7 @@ describe('requestNewDocument (tabs mode)', () => {
     const initialCount = store.tabCount;
     await requestNewDocument(store);
     expect(store.tabCount).toBe(initialCount + 1);
-    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
   });
 });
 
@@ -193,7 +166,7 @@ describe('requestOpenDocument (windows mode)', () => {
     store.updateContent('modified');
     mockedOpen.mockResolvedValue('/tmp/other.md');
     await requestOpenDocument(store);
-    expect(mockedInvoke).toHaveBeenCalledWith('open_new_window', { path: '/tmp/other.md' });
+    expect(invoke).toHaveBeenCalledWith('open_new_window', { path: '/tmp/other.md' });
   });
 
   it('shows error when open_new_window fails with a path', async () => {
@@ -201,7 +174,7 @@ describe('requestOpenDocument (windows mode)', () => {
     store.loadFile('existing', '/tmp/existing.md');
     store.updateContent('modified');
     mockedOpen.mockResolvedValue('/tmp/other.md');
-    mockedInvoke.mockRejectedValueOnce(new Error('Failed'));
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Failed'));
     await requestOpenDocument(store);
     expect(message).toHaveBeenCalled();
   });

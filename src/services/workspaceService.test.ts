@@ -1,12 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
+import { resetMockTauri } from '../mock-tauri';
 
-// Mock Tauri fs plugin
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  readDir: vi.fn(),
-}));
-
-// Mock assetScopeService to avoid Tauri invoke
+// Mock assetScopeService (non-Tauri dep)
 vi.mock('./assetScopeService', () => ({
   allowAssetDirectory: vi.fn().mockResolvedValue(undefined),
   allowAssetDirectoryForFile: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +30,6 @@ const mockedReadDir = vi.mocked(readDir);
 
 beforeEach(() => {
   setActivePinia(createPinia());
-  vi.clearAllMocks();
 });
 
 describe('loadWorkspaceTree', () => {
