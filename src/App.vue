@@ -72,6 +72,7 @@ import { useMarkdownPreview } from './composables/useMarkdownPreview';
 import { promptUnsavedChanges } from './composables/useUnsavedPrompt';
 import { useFileWatch } from './composables/useFileWatch';
 import { useAutoSave, flushPendingSave } from './composables/useAutoSave';
+import { cleanupTauriEventListeners } from './utils/tauriEventCleanup';
 import { restoreSession, useSessionRestore } from './composables/useSessionRestore';
 import { refreshWorkspaceTree } from './services/workspaceService';
 import { useWorkspaceStore } from './stores/workspace';
@@ -299,10 +300,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  unlistenClose?.();
-  unlistenDrop?.();
-  unlistenFileOpen?.();
-  unlistenFocus?.();
+  cleanupTauriEventListeners([unlistenClose, unlistenDrop, unlistenFileOpen, unlistenFocus]);
 });
 </script>
 

@@ -5,6 +5,7 @@ import { basename, dirname } from '../utils/path';
 import { promptUnsavedChanges } from './useUnsavedPrompt';
 import { saveFile, showToast, updateWindowTitle } from '../services/fileService';
 import { wasRecentlyWritten } from '../utils/writeSuppression';
+import { cleanupTauriEventListeners } from '../utils/tauriEventCleanup';
 
 type EditorStore = ReturnType<typeof useEditorStore>;
 
@@ -165,7 +166,7 @@ export function useFileWatch(store: EditorStore): void {
   onUnmounted(() => {
     stopPathWatcher();
     if (pollTimer !== null) window.clearInterval(pollTimer);
-    for (const unwatch of unwatchByDir.values()) unwatch();
+    cleanupTauriEventListeners(unwatchByDir.values());
     unwatchByDir.clear();
   });
 }
