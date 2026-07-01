@@ -3,7 +3,12 @@ export interface MarkdownTaskCheckbox {
   checked: boolean;
 }
 
-const TASK_CHECKBOX_RE = /^[>\s]*([-*+]|\d+[.)])\s+(\[[ xX]\])/;
+// Mirrors Marked's GFM task-list rule (`/^\[[ xX]\] /`): the marker only
+// becomes a real checkbox when a literal space follows the `]`. Without the
+// trailing-space lookahead a line like `- [ ]text` would be counted here but
+// rendered as plain text by Marked, shifting every later checkbox's index and
+// making clicks toggle the wrong source marker.
+const TASK_CHECKBOX_RE = /^[>\s]*([-*+]|\d+[.)])\s+(\[[ xX]\]) /;
 const FENCE_RE = /^[ \t]{0,3}(`{3,}|~{3,})/;
 
 function isFenceClose(line: string, markerChar: '`' | '~', minLength: number): boolean {

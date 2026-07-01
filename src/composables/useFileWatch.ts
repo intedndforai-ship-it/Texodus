@@ -4,7 +4,7 @@ import { useEditorStore, type Tab } from '../stores/editor';
 import { basename, dirname } from '../utils/path';
 import { promptUnsavedChanges } from './useUnsavedPrompt';
 import { saveFile, showToast, updateWindowTitle } from '../services/fileService';
-import { wasRecentlyWritten } from '../utils/writeSuppression';
+import { wasWrittenWithContent } from '../utils/writeSuppression';
 import { cleanupTauriEventListeners } from '../utils/tauriEventCleanup';
 
 type EditorStore = ReturnType<typeof useEditorStore>;
@@ -53,9 +53,6 @@ export function useFileWatch(store: EditorStore): void {
   async function reloadChangedPath(path: string, retried = false) {
     if (handlingPaths.has(path)) return;
 
-    // Suppress events triggered by our own writes (auto-save, manual save).
-    if (wasRecentlyWritten(path)) return;
-
     handlingPaths.add(path);
 
     try {
@@ -63,6 +60,16 @@ export function useFileWatch(store: EditorStore): void {
       if (fingerprint && knownDiskVersionByPath.get(path) === fingerprint) return;
 
       const diskContent = await readTextFile(path);
+
+      // Suppress only when the on-disk content matches what *we* just wrote —
+      // i.e. the watcher is echoing our own save (auto-save or manual save). A
+      // genuine external edit that lands inside the suppression window has
+      // different content and is therefore NOT suppressed: it still reloads.
+      if (wasWrittenWithContent(path, diskContent)) {
+        knownDiskVersionByPath.set(path, fingerprint ?? `content:${diskContent}`);
+        return;
+      }
+
       const version = fingerprint ?? `content:${diskContent}`;
       if (knownDiskVersionByPath.get(path) === version) return;
       knownDiskVersionByPath.set(path, version);

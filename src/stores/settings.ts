@@ -99,6 +99,14 @@ const DEFAULTS: PersistedSettings = {
   autoSave: false,
 };
 
+// Serialized snapshot of the last value we wrote to localStorage. `persist()`
+// compares against this and bails when nothing changed — without it, a
+// sync-induced `reloadFromStorage()` re-persists identical data and
+// re-broadcasts, forming an unbounded persist→broadcast→reload→persist loop
+// (within a window via BroadcastChannel echo, and across windows via ping-pong)
+// that saturates the main thread and stalls rendering.
+let lastPersisted: string | null = null;
+
 function loadPersisted(): PersistedSettings {
   if (typeof localStorage === 'undefined') return { ...DEFAULTS };
   try {
@@ -155,8 +163,10 @@ export const useSettingsStore = defineStore('settings', {
     setSmoothScrollSync(v: boolean) { this.smoothScrollSync = v; },
     setAutoSave(v: boolean) { this.autoSave = v; },
     setSearchHighlightColor(v: string) {
-      const hex = v.trim();
-      if (/^[0-9a-fA-F]{6}$/.test(hex)) this.searchHighlightColor = hex;
+      // Accept both `#rrggbb` (what `<input type="color">` emits) and a bare
+      // `rrggbb`, and store a normalised `#rrggbb` to match the default.
+      const m = /^#?([0-9a-fA-F]{6})$/.exec(v.trim());
+      if (m) this.searchHighlightColor = `#${m[1].toLowerCase()}`;
     },
     setSidebarWidth(width: number) {
       this.sidebarWidth = Math.max(220, Math.min(420, Math.round(width)));
@@ -196,20 +206,34 @@ export const useSettingsStore = defineStore('settings', {
     // in sync — in particular `documentMode`, which a stale window would
     // otherwise overwrite in the Rust backend via report_window_status.
     reloadFromStorage() {
-      this.$patch(loadPersisted());
+      const persisted = loadPersisted();
+      // Pre-seed the persist guard with exactly what we just read. The `$patch`
+      // below triggers `$subscribe → persist()`, which would otherwise re-write
+      // and re-broadcast data we only *received* from another window — bouncing
+      // an identical payload back out. With N windows open, one change would
+      // fan out into O(N) redundant writes/broadcasts. Seeding `lastPersisted`
+      // makes that echo `persist()` a no-op. See `lastPersisted`.
+      lastPersisted = JSON.stringify(persisted);
+      this.$patch(persisted);
     },
     persist() {
       if (typeof localStorage === 'undefined') return;
+      const {
+        settingsVisible: _s,
+        aboutVisible: _a,
+        systemFonts: _sf,
+        systemFontsLoaded: _sfl,
+        layoutMode: _lm,
+        ...toSave
+      } = this.$state;
+      const serialized = JSON.stringify(toSave);
+      // Nothing actually changed (e.g. a sync-induced reload, or a transient
+      // UI-only mutation) — skip the write and the broadcast. This is what
+      // keeps cross-window sync from looping; see `lastPersisted`.
+      if (serialized === lastPersisted) return;
+      lastPersisted = serialized;
       try {
-        const {
-          settingsVisible: _s,
-          aboutVisible: _a,
-          systemFonts: _sf,
-          systemFontsLoaded: _sfl,
-          layoutMode: _lm,
-          ...toSave
-        } = this.$state;
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(toSave));
+        localStorage.setItem(SETTINGS_STORAGE_KEY, serialized);
       } catch {
         // Quota exceeded or unavailable — silently ignore.
       }

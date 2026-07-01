@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import {
   useSettingsStore,
@@ -31,6 +31,19 @@ describe('settings store', () => {
     expect(store.lineHeight).toBe(1.2);
     store.setLineHeight(1.7000000000000002);
     expect(store.lineHeight).toBe(1.7);
+  });
+
+  it('accepts search highlight colors with or without a leading #, normalised', () => {
+    const store = useSettingsStore();
+    // `<input type="color">` emits `#rrggbb` — must be accepted.
+    store.setSearchHighlightColor('#1A2B3C');
+    expect(store.searchHighlightColor).toBe('#1a2b3c');
+    // Bare hex is also accepted, and normalised to `#rrggbb`.
+    store.setSearchHighlightColor('ABCDEF');
+    expect(store.searchHighlightColor).toBe('#abcdef');
+    // Invalid input is rejected, leaving the previous value untouched.
+    store.setSearchHighlightColor('nope');
+    expect(store.searchHighlightColor).toBe('#abcdef');
   });
 
   it('keeps recent files deduplicated, newest first, capped at 10', () => {
@@ -87,6 +100,24 @@ describe('settings store', () => {
     expect(store.settingsVisible).toBe(true);
     // layoutMode is per-window — must NOT be overwritten by reloadFromStorage.
     expect(store.layoutMode).toBe('focus');
+  });
+
+  it('reloadFromStorage does not re-persist/echo the data it just received', () => {
+    const store = useSettingsStore();
+    // Another window wrote a change to shared storage; seed it directly.
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ fontSize: 19 }));
+
+    store.reloadFromStorage();
+    expect(store.fontSize).toBe(19);
+
+    // The `$patch` inside reloadFromStorage fires persist() via `$subscribe`
+    // in the real app. That persist() must be a no-op here — re-writing and
+    // re-broadcasting data we only *received* would bounce it back out and
+    // fan out into O(N) redundant writes across open windows.
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    store.persist();
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
   });
 
   it('falls back to defaults on corrupt stored JSON', () => {

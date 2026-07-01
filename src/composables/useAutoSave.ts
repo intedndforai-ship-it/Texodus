@@ -25,67 +25,69 @@ const AUTOSAVE_DEBOUNCE_MS = 1500;
 
 // ── Module-level state (singleton) ─────────────────────────────────────────────
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingPath: string | null = null;
-let pendingContent: string | null = null;
+interface PendingSave {
+  content: string;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+// One pending debounced save per file path. Keyed by path (not a single global
+// slot) so a scheduled save for tab A is never clobbered when the user switches
+// to and edits tab B before A's debounce fires.
+const pending = new Map<string, PendingSave>();
 let isFlushing = false;
 
-/** Check if there is a pending auto-save for the current tab. */
+/** True when at least one file has a pending debounced auto-save. */
 export function hasPendingSave(): boolean {
-  return debounceTimer !== null;
+  return pending.size > 0;
 }
 
 /**
- * Immediately save any pending debounced content. Returns true if a save
- * was actually performed.
+ * Immediately save every pending debounced file. Returns true if at least one
+ * save was performed.
  */
 export async function flushPendingSave(): Promise<boolean> {
   if (isFlushing) return false;
-  if (!debounceTimer) return false;
+  if (pending.size === 0) return false;
 
-  clearTimeout(debounceTimer);
-  debounceTimer = null;
-
-  const path = pendingPath;
-  const content = pendingContent;
-  pendingPath = null;
-  pendingContent = null;
-
-  if (!path || content === null) return false;
-
-  return await doSave(path, content);
-}
-
-async function doSave(path: string, content: string): Promise<boolean> {
   isFlushing = true;
   try {
-    await writeTextFile(path, content);
-    const store = useEditorStore();
-    const tab = store.tabs.find((t) => t.filePath === path);
-    if (tab) store.setTabDirty(tab.id, false);
-    markFileWritten(path);
-    return true;
-  } catch (e) {
-    console.warn('Auto-save failed:', path, e);
-    showToast('Auto-save failed');
-    return false;
+    const entries = [...pending.entries()];
+    pending.clear();
+    for (const [, p] of entries) clearTimeout(p.timer);
+
+    let saved = false;
+    for (const [path, p] of entries) {
+      if (await doSave(path, p.content)) saved = true;
+    }
+    return saved;
   } finally {
     isFlushing = false;
   }
 }
 
+async function doSave(path: string, content: string): Promise<boolean> {
+  try {
+    await writeTextFile(path, content);
+    const store = useEditorStore();
+    const tab = store.tabs.find((t) => t.filePath === path);
+    if (tab) store.setTabDirty(tab.id, false);
+    markFileWritten(path, content);
+    return true;
+  } catch (e) {
+    console.warn('Auto-save failed:', path, e);
+    showToast('Auto-save failed');
+    return false;
+  }
+}
+
 function scheduleSave(path: string, content: string): void {
-  pendingPath = path;
-  pendingContent = content;
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    debounceTimer = null;
-    const p = pendingPath;
-    const c = pendingContent;
-    pendingPath = null;
-    pendingContent = null;
-    if (p && c !== null) void doSave(p, c);
+  const existing = pending.get(path);
+  if (existing) clearTimeout(existing.timer);
+  const timer = setTimeout(() => {
+    pending.delete(path);
+    void doSave(path, content);
   }, AUTOSAVE_DEBOUNCE_MS);
+  pending.set(path, { content, timer });
 }
 
 /**
@@ -105,9 +107,13 @@ export function useAutoSave(store: EditorStore): void {
       (newContent) => {
         const settings = useSettingsStore();
         if (!settings.autoSave) return;
-        const path = store.filePath;
-        if (!path) return; // Untitled — can't auto-save without a path.
-        scheduleSave(path, newContent);
+        const tab = store.activeTab;
+        if (!tab.filePath) return; // Untitled — can't auto-save without a path.
+        // Only a real edit dirties the tab. A bare tab switch also changes
+        // `store.content` (the getter follows the active tab) but leaves the
+        // newly-active tab clean — don't rewrite an unmodified file to disk.
+        if (!tab.isDirty) return;
+        scheduleSave(tab.filePath, newContent);
       },
     );
   }
@@ -136,9 +142,9 @@ export function useAutoSave(store: EditorStore): void {
   onUnmounted(() => {
     void flushPendingSave();
     stopContentWatcher();
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
+    // Defensive: drop any timers flush didn't consume (e.g. if a flush was
+    // already in progress and bailed early).
+    for (const [, p] of pending) clearTimeout(p.timer);
+    pending.clear();
   });
 }

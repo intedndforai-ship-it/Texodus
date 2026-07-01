@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createCrossWindowSync, broadcastChange } from './crossWindowSync';
 
 // BroadcastChannel is not available in jsdom by default — polyfill it.
+// Matches the spec rule we rely on: a message is delivered to every instance
+// on the channel name EXCEPT the one that posted it.
 class MockBroadcastChannel {
   name: string;
   listeners: Set<(e: { data: unknown }) => void> = new Set();
@@ -40,6 +42,14 @@ class MockBroadcastChannel {
   }
 }
 
+// Simulate a *different* window posting on the channel: a fresh instance,
+// distinct from the one `createCrossWindowSync` / `broadcastChange` use.
+function postFromOtherWindow(name: string): void {
+  const ch = new BroadcastChannel(name);
+  ch.postMessage('sync');
+  ch.close();
+}
+
 describe('crossWindowSync', () => {
   beforeEach(() => {
     MockBroadcastChannel.instances.clear();
@@ -52,7 +62,7 @@ describe('crossWindowSync', () => {
     delete globalThis.BroadcastChannel;
   });
 
-  it('broadcastChange triggers onSync in other instances', () => {
+  it('a broadcast from another window triggers onSync', () => {
     let syncCount = 0;
     const cleanup = createCrossWindowSync({
       channelName: 'test-sync',
@@ -60,8 +70,24 @@ describe('crossWindowSync', () => {
       onSync: () => { syncCount++; },
     });
 
-    broadcastChange('test-sync');
+    postFromOtherWindow('test-sync');
     expect(syncCount).toBe(1);
+
+    cleanup();
+  });
+
+  it('does NOT deliver a window its own broadcast (prevents the sync loop)', () => {
+    let syncCount = 0;
+    const cleanup = createCrossWindowSync({
+      channelName: 'test-sync-self',
+      storageKey: 'test-key-self',
+      onSync: () => { syncCount++; },
+    });
+
+    // The same window that listens also broadcasts — it must not hear itself,
+    // otherwise persist→broadcast→reload→persist loops forever.
+    broadcastChange('test-sync-self');
+    expect(syncCount).toBe(0);
 
     cleanup();
   });
@@ -113,7 +139,7 @@ describe('crossWindowSync', () => {
 
     cleanup();
 
-    broadcastChange('test-sync-4');
+    postFromOtherWindow('test-sync-4');
     const event = new StorageEvent('storage', {
       key: 'test-key-4',
       newValue: '{}',
@@ -123,19 +149,20 @@ describe('crossWindowSync', () => {
     expect(syncCount).toBe(0);
   });
 
-  it('onSync is not re-entrant', () => {
+  it('reacting to a sync and re-broadcasting does not loop back to self', () => {
     let callCount = 0;
     const cleanup = createCrossWindowSync({
       channelName: 'test-sync-5',
       storageKey: 'test-key-5',
       onSync: () => {
         callCount++;
-        // Simulate re-entrancy: broadcastChange during onSync.
+        // A reaction commonly re-persists, which re-broadcasts. That echo must
+        // not come back to us (which would loop).
         broadcastChange('test-sync-5');
       },
     });
 
-    broadcastChange('test-sync-5');
+    postFromOtherWindow('test-sync-5');
     expect(callCount).toBe(1);
 
     cleanup();
@@ -155,11 +182,11 @@ describe('crossWindowSync', () => {
       onSync: () => { countB++; },
     });
 
-    broadcastChange('channel-a');
+    postFromOtherWindow('channel-a');
     expect(countA).toBe(1);
     expect(countB).toBe(0);
 
-    broadcastChange('channel-b');
+    postFromOtherWindow('channel-b');
     expect(countA).toBe(1);
     expect(countB).toBe(1);
 

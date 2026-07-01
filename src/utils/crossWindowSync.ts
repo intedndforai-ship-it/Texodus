@@ -24,8 +24,6 @@ interface CrossWindowSyncOptions {
   onSync: () => void;
 }
 
-type Listener = () => void;
-
 const channels = new Map<string, BroadcastChannel>();
 
 function getChannel(name: string): BroadcastChannel | null {
@@ -45,13 +43,13 @@ function getChannel(name: string): BroadcastChannel | null {
  * (slower, debounced) `storage` event.
  */
 export function broadcastChange(channelName: string): void {
-  if (typeof BroadcastChannel === 'undefined') return;
-  // Create a throwaway channel so the message is delivered to the
-  // listening channel (BroadcastChannel doesn't deliver to the same
-  // instance that sent the message).
-  const ch = new BroadcastChannel(channelName);
-  ch.postMessage('sync');
-  ch.close();
+  // Post on the *shared* channel instance — the same one this window listens
+  // on. BroadcastChannel never delivers a message back to the instance that
+  // sent it, so this reaches every other window but NOT our own listener.
+  // (A throwaway sender instance would be delivered to our own listener,
+  // which — because reacting re-persists and re-broadcasts — forms an infinite
+  // same-window sync loop.)
+  getChannel(channelName)?.postMessage('sync');
 }
 
 /**

@@ -67,7 +67,7 @@ export async function saveFile(store: EditorStore): Promise<boolean> {
     if (!store.filePath) return await saveFileAs(store);
 
     await writeTextFile(store.filePath, store.content);
-    markFileWritten(store.filePath);
+    markFileWritten(store.filePath, store.content);
     store.setDirty(false);
     await updateWindowTitle(store);
     showToast('File saved');
@@ -89,7 +89,7 @@ export async function saveFileAs(store: EditorStore): Promise<boolean> {
     const path = selected as string;
     await writeTextFile(path, store.content);
     await allowAssetDirectoryForFile(path);
-    markFileWritten(path);
+    markFileWritten(path, store.content);
     store.setFilePath(path);
     store.setDirty(false);
     useSettingsStore().addRecentFile(path);
