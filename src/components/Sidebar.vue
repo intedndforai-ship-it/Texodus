@@ -103,7 +103,7 @@ import {
   openWorkspaceFolder,
   refreshWorkspaceTree,
 } from '../services/workspaceService';
-import { loadFileFromPath } from '../services/fileService';
+import { requestOpenFromPath } from '../services/fileService';
 import {
   copyWorkspaceRelativePath,
   createWorkspaceFile,
@@ -280,7 +280,7 @@ async function confirmNamePrompt(rawValue: string) {
 
 async function openFile(path: string) {
   if (consumeSuppressedClick()) return;
-  await loadFileFromPath(editorStore, path);
+  await requestOpenFromPath(editorStore, path);
   if (editorStore.filePath === path) workspaceStore.setSelectedPath(path);
 }
 </script>

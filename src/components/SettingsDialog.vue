@@ -227,7 +227,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
 }
 
 .settings-dialog {
-  width: 360px;
+  width: 520px;
   max-width: 90vw;
   max-height: 85vh;
   background: var(--bg-color);
