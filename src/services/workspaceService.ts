@@ -120,7 +120,7 @@ function getParentDirectoriesInsideWorkspace(filePath: string, rootPath: string)
     current = parent;
   }
 
-  dirs.unshift(rootPath);
+  dirs.unshift(normalizedRoot);
   return dirs;
 }
 

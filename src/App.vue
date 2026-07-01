@@ -71,6 +71,7 @@ import { setupAppMenu } from './composables/useAppMenu';
 import { useMarkdownPreview } from './composables/useMarkdownPreview';
 import { promptUnsavedChanges } from './composables/useUnsavedPrompt';
 import { useFileWatch } from './composables/useFileWatch';
+import { useWorkspaceWatch } from './composables/useWorkspaceWatch';
 import { useAutoSave, flushPendingSave } from './composables/useAutoSave';
 import { cleanupTauriEventListeners } from './utils/tauriEventCleanup';
 import { restoreSession, useSessionRestore } from './composables/useSessionRestore';
@@ -87,6 +88,7 @@ const editorStore = useEditorStore();
 const workspaceStore = useWorkspaceStore();
 const { getEditorView } = useMarkdownPreview();
 useFileWatch(editorStore);
+useWorkspaceWatch();
 useAutoSave(editorStore);
 useSessionRestore(editorStore);
 

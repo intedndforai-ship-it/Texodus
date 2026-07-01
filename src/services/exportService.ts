@@ -264,6 +264,115 @@ interface MermaidPngResult {
 // pattern of mutating `marked` tokens with `(token as any).mermaidPngUrl`.
 type MermaidPngMap = WeakMap<Tokens.Code, MermaidPngResult>;
 
+interface EmbeddedImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+// Per-export map of image-token → embedded data URI. Populated up-front so the
+// synchronous token→content walk can look images up without awaiting.
+type ImageMap = WeakMap<Tokens.Image, EmbeddedImage>;
+
+// pdfmake/PDFKit only embeds PNG and JPEG bitmaps; other formats (gif/webp/svg)
+// stay as the text placeholder.
+const PDF_IMAGE_MIME_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+};
+
+/** Reads pixel dimensions off a data URL so we can cap width to the page. */
+function loadImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to load image for sizing"));
+    img.src = dataUrl;
+  });
+}
+
+/** Walks the token tree collecting every image token, including inside lists
+ *  and table cells (which the generic `.tokens` recursion doesn't reach). */
+function collectImageTokens(tokens: Token[]): Tokens.Image[] {
+  const out: Tokens.Image[] = [];
+  const walk = (list: Token[]) => {
+    for (const t of list) {
+      if (t.type === "image") {
+        out.push(t as Tokens.Image);
+        continue;
+      }
+      if (t.type === "list") {
+        for (const item of (t as Tokens.List).items) {
+          if (Array.isArray(item.tokens)) walk(item.tokens);
+        }
+      } else if (t.type === "table") {
+        const tbl = t as Tokens.Table;
+        for (const cell of tbl.header) if (Array.isArray(cell.tokens)) walk(cell.tokens);
+        for (const row of tbl.rows) for (const cell of row) if (Array.isArray(cell.tokens)) walk(cell.tokens);
+      } else if ("tokens" in t && Array.isArray((t as { tokens?: Token[] }).tokens)) {
+        walk((t as { tokens: Token[] }).tokens);
+      }
+    }
+  };
+  walk(tokens);
+  return out;
+}
+
+/** Reads local raster images and records them as data URIs for embedding.
+ *  Remote/`data:` sources and unsupported/unreadable files are left untouched
+ *  (they fall back to the `[alt]` text placeholder). */
+async function preRenderImages(
+  imageTokens: Tokens.Image[],
+  baseDir: string,
+  images: ImageMap,
+): Promise<void> {
+  for (const token of imageTokens) {
+    const src = token.href;
+    if (!src || hasUrlScheme(src)) continue;
+    if (!isAbsolutePath(src) && !baseDir) continue;
+    const abs = resolveLocalPath(baseDir, src);
+    const ext = abs.split(".").pop()?.toLowerCase() ?? "";
+    const mime = PDF_IMAGE_MIME_TYPES[ext];
+    if (!mime) continue;
+    try {
+      const bytes = await readFile(abs);
+      const dataUrl = `data:${mime};base64,${bytesToBase64(bytes)}`;
+      const { width, height } = await loadImageDimensions(dataUrl);
+      images.set(token, { dataUrl, width, height });
+    } catch (e) {
+      console.warn(`Failed to embed image in PDF export: ${abs}`, e);
+    }
+  }
+}
+
+/** Renders a run of inline tokens, splitting out any resolved images as
+ *  block-level `{ image }` content (pdfmake can't inline images into a text
+ *  run). Unresolved images stay as the inline `[alt]` placeholder. When no
+ *  images are present this yields a single styled text block. */
+function inlineWithImagesToContent(tokens: Token[], images: ImageMap, style?: string): Content[] {
+  const out: Content[] = [];
+  let run: Token[] = [];
+  const flush = () => {
+    if (run.length === 0) return;
+    const inline = inlineTokensToContent(run);
+    if (inline.length > 0) out.push(style ? { text: inline, style } : { text: inline });
+    run = [];
+  };
+  for (const t of tokens) {
+    const embedded = t.type === "image" ? images.get(t as Tokens.Image) : undefined;
+    if (embedded) {
+      flush();
+      const width = Math.min(495, embedded.width || 495);
+      out.push({ image: embedded.dataUrl, width, margin: [0, 6, 0, 6] });
+    } else {
+      run.push(t);
+    }
+  }
+  flush();
+  return out.length > 0 ? out : [style ? { text: "", style } : { text: "" }];
+}
+
 function inlineTokensToContent(tokens: Token[] | undefined): Content[] {
   if (!tokens) return [];
   const out: Content[] = [];
@@ -314,7 +423,7 @@ function inlineTokensToContent(tokens: Token[] | undefined): Content[] {
   return out;
 }
 
-function blockTokensToContent(tokens: Token[], mermaidPngs: MermaidPngMap): Content[] {
+function blockTokensToContent(tokens: Token[], mermaidPngs: MermaidPngMap, images: ImageMap): Content[] {
   const out: Content[] = [];
   for (const token of tokens) {
     switch (token.type) {
@@ -326,19 +435,19 @@ function blockTokensToContent(tokens: Token[], mermaidPngs: MermaidPngMap): Cont
       }
       case "paragraph": {
         const p = token as Tokens.Paragraph;
-        out.push({ text: inlineTokensToContent(p.tokens), style: "paragraph" });
+        out.push(...inlineWithImagesToContent(p.tokens, images, "paragraph"));
         break;
       }
       case "text": {
         const tt = token as Tokens.Text;
-        if (tt.tokens) out.push({ text: inlineTokensToContent(tt.tokens) });
+        if (tt.tokens) out.push(...inlineWithImagesToContent(tt.tokens, images));
         else out.push({ text: tt.text });
         break;
       }
       case "list": {
         const l = token as Tokens.List;
         const items: Content[] = l.items.map((item) => {
-          const inner = blockTokensToContent(item.tokens, mermaidPngs);
+          const inner = blockTokensToContent(item.tokens, mermaidPngs, images);
           const flat: Content = inner.length === 1 ? inner[0] : { stack: inner };
           if (item.task) {
             const marker = item.checked ? "☑  " : "☐  ";
@@ -367,7 +476,7 @@ function blockTokensToContent(tokens: Token[], mermaidPngs: MermaidPngMap): Cont
       }
       case "blockquote": {
         const b = token as Tokens.Blockquote;
-        out.push({ stack: blockTokensToContent(b.tokens, mermaidPngs), style: "blockquote", margin: [12, 4, 0, 4] });
+        out.push({ stack: blockTokensToContent(b.tokens, mermaidPngs, images), style: "blockquote", margin: [12, 4, 0, 4] });
         break;
       }
       case "hr":
@@ -517,7 +626,7 @@ async function preRenderMermaidPngs(
   }
 }
 
-async function buildPdfDocDefinition(markdown: string, title: string): Promise<TDocumentDefinitions> {
+async function buildPdfDocDefinition(markdown: string, title: string, filePath: string | null): Promise<TDocumentDefinitions> {
   const tokens = lexMarkdown(markdown);
 
   const mermaidPngs: MermaidPngMap = new WeakMap();
@@ -526,9 +635,15 @@ async function buildPdfDocDefinition(markdown: string, title: string): Promise<T
     await preRenderMermaidPngs(mermaidTokens, mermaidPngs);
   }
 
+  const images: ImageMap = new WeakMap();
+  const imageTokens = collectImageTokens(tokens);
+  if (imageTokens.length > 0) {
+    await preRenderImages(imageTokens, filePath ? dirname(filePath) : "", images);
+  }
+
   return {
     info: { title },
-    content: blockTokensToContent(tokens, mermaidPngs),
+    content: blockTokensToContent(tokens, mermaidPngs, images),
     defaultStyle: { font: "Roboto", fontSize: 11, lineHeight: 1.4, color: "#1a1d23" },
     pageMargins: [50, 50, 50, 50],
     styles: {
@@ -561,7 +676,7 @@ export async function exportPdf(markdown: string, filePath: string | null): Prom
     });
     if (!savePath) return false;
 
-    const docDef = await buildPdfDocDefinition(markdown, title);
+    const docDef = await buildPdfDocDefinition(markdown, title, filePath);
     const pdfMake = await loadPdfMake();
     const blob = await pdfMake.createPdf(docDef).getBlob();
     const bytes = new Uint8Array(await blob.arrayBuffer());
