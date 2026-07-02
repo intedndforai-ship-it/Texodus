@@ -11,7 +11,7 @@ import { useEditorStore } from '../stores/editor';
 import { fuzzySearch, type RankedResult } from '../utils/fuzzyMatch';
 import { type FileTreeNode } from '../utils/workspaceTree';
 import { isMac } from '../utils/platform';
-import { requestOpenFromPath } from '../services/fileService';
+import { requestNavigateToPath } from '../services/fileService';
 import { listWorkspaceFilesRecursively } from '../services/workspaceService';
 
 export interface QuickOpenFile {
@@ -114,7 +114,9 @@ async function selectResult(index: number): Promise<void> {
   const file = ranked[index].item;
   closeQuickOpen();
   const editorStore = useEditorStore();
-  await requestOpenFromPath(editorStore, file.path);
+  // Quick Open is workspace navigation like the sidebar: replace the current
+  // window's document in place (windows mode) rather than spawning a window.
+  await requestNavigateToPath(editorStore, file.path);
 }
 
 /** Move selection up (negative) or down (positive). */

@@ -21,7 +21,10 @@ import {
   requestNewDocument,
   requestOpenDocument,
   requestOpenFromPath,
+  requestNavigateToPath,
+  requestOpenInNewWindow,
 } from './fileService';
+import { promptUnsavedChanges } from '../composables/useUnsavedPrompt';
 import { useEditorStore } from '../stores/editor';
 import { useSettingsStore } from '../stores/settings';
 
@@ -258,6 +261,110 @@ describe('requestOpenDocument (windows mode)', () => {
       throw new Error('Failed');
     });
     await requestOpenDocument(store);
+    expect(message).toHaveBeenCalled();
+  });
+
+  it('focuses the window that already has the picked file instead of duplicating', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+    setMockInvoke('pick_document', () => '/tmp/elsewhere.md');
+    setMockInvoke('focus_window_with_path', () => true);
+    await requestOpenDocument(store);
+    expect(invoke).not.toHaveBeenCalledWith('open_new_window', expect.anything());
+    expect(store.filePath).toBe('/tmp/existing.md');
+  });
+});
+
+describe('requestNavigateToPath (windows mode)', () => {
+  it('replaces the document in place instead of opening a new window', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+    mockedReadTextFile.mockResolvedValue('sidebar file');
+
+    await requestNavigateToPath(store, '/tmp/side.md');
+
+    expect(store.filePath).toBe('/tmp/side.md');
+    expect(store.content).toBe('sidebar file');
+    expect(invoke).not.toHaveBeenCalledWith('open_new_window', expect.anything());
+  });
+
+  it('runs the unsaved prompt before replacing a dirty document', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+    store.updateContent('modified');
+    mockedReadTextFile.mockResolvedValue('next');
+
+    await requestNavigateToPath(store, '/tmp/next.md');
+
+    expect(promptUnsavedChanges).toHaveBeenCalled();
+    expect(store.filePath).toBe('/tmp/next.md'); // module mock resolves 'discard'
+  });
+
+  it('keeps the dirty document when the user cancels the prompt', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+    store.updateContent('modified');
+    vi.mocked(promptUnsavedChanges).mockResolvedValueOnce('cancel');
+
+    await requestNavigateToPath(store, '/tmp/next.md');
+
+    expect(store.filePath).toBe('/tmp/existing.md');
+    expect(store.content).toBe('modified');
+  });
+
+  it('focuses the other window when the file is already open there', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+    setMockInvoke('focus_window_with_path', () => true);
+
+    await requestNavigateToPath(store, '/tmp/elsewhere.md');
+
+    expect(store.filePath).toBe('/tmp/existing.md');
+    expect(mockedReadTextFile).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the path is already the current document', async () => {
+    const store = useEditorStore();
+    store.loadFile('existing', '/tmp/existing.md');
+
+    await requestNavigateToPath(store, '/tmp/existing.md');
+
+    expect(mockedReadTextFile).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith('focus_window_with_path', expect.anything());
+  });
+});
+
+describe('requestNavigateToPath (tabs mode)', () => {
+  it('opens the file as a tab', async () => {
+    const store = useEditorStore();
+    useSettingsStore().setDocumentMode('tabs');
+    store.loadFile('first', '/tmp/a.md');
+    mockedReadTextFile.mockResolvedValue('second');
+
+    await requestNavigateToPath(store, '/tmp/b.md');
+
+    expect(store.tabCount).toBe(2);
+    expect(store.filePath).toBe('/tmp/b.md');
+  });
+});
+
+describe('requestOpenInNewWindow', () => {
+  it('opens a new window with the path', async () => {
+    await requestOpenInNewWindow('/tmp/a.md');
+    expect(invoke).toHaveBeenCalledWith('open_new_window', { path: '/tmp/a.md' });
+  });
+
+  it('focuses the existing window instead of duplicating the file', async () => {
+    setMockInvoke('focus_window_with_path', () => true);
+    await requestOpenInNewWindow('/tmp/a.md');
+    expect(invoke).not.toHaveBeenCalledWith('open_new_window', expect.anything());
+  });
+
+  it('shows an error dialog when window creation fails', async () => {
+    setMockInvoke('open_new_window', () => {
+      throw new Error('boom');
+    });
+    await requestOpenInNewWindow('/tmp/a.md');
     expect(message).toHaveBeenCalled();
   });
 });

@@ -4,6 +4,8 @@
     :style="{ left: `${x}px`, top: `${y}px` }"
     @click.stop
   >
+    <button v-if="isFile" type="button" @click="emit('action', 'open-in-new-window')">Open in New Window</button>
+    <div v-if="isFile" class="sidebar-context-menu__separator"></div>
     <button type="button" @click="emit('action', 'new-file')">New File</button>
     <button type="button" @click="emit('action', 'new-folder')">New Folder</button>
     <div v-if="!isRoot" class="sidebar-context-menu__separator"></div>
@@ -17,6 +19,7 @@
 
 <script setup lang="ts">
 export type SidebarContextAction =
+  | 'open-in-new-window'
   | 'new-file'
   | 'new-folder'
   | 'rename'
@@ -29,6 +32,8 @@ defineProps<{
   y: number;
   /** Root menu hides Rename/Delete — the workspace root itself can't be touched. */
   isRoot: boolean;
+  /** Only file nodes get "Open in New Window" — it makes no sense on folders. */
+  isFile: boolean;
 }>();
 
 const emit = defineEmits<{

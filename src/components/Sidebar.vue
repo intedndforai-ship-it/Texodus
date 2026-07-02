@@ -76,6 +76,7 @@
       :x="contextMenu.x"
       :y="contextMenu.y"
       :is-root="contextMenu.isRoot"
+      :is-file="contextMenu.node.kind === 'file'"
       @action="runContextAction"
     />
 
@@ -103,7 +104,7 @@ import {
   openWorkspaceFolder,
   refreshWorkspaceTree,
 } from '../services/workspaceService';
-import { requestOpenFromPath } from '../services/fileService';
+import { requestNavigateToPath, requestOpenInNewWindow } from '../services/fileService';
 import {
   copyWorkspaceRelativePath,
   createWorkspaceFile,
@@ -215,7 +216,7 @@ function openRootContextMenu(event: MouseEvent) {
 
 function getContextMenuPosition(event: MouseEvent): { x: number; y: number } {
   const menuWidth = 210;
-  const menuHeight = contextMenu.isRoot ? 150 : 250;
+  const menuHeight = contextMenu.isRoot ? 150 : contextMenu.node?.kind === 'file' ? 290 : 250;
   const padding = 8;
   const x = Math.min(event.clientX, window.innerWidth - menuWidth - padding);
   const opensUpward = event.clientY + menuHeight + padding > window.innerHeight;
@@ -239,7 +240,8 @@ async function runContextAction(action: SidebarContextAction) {
   closeContextMenu();
   if (!node) return;
 
-  if (action === 'new-file') openNamePrompt('new-file', node, 'New file name', 'untitled.md');
+  if (action === 'open-in-new-window') await requestOpenInNewWindow(node.path);
+  else if (action === 'new-file') openNamePrompt('new-file', node, 'New file name', 'untitled.md');
   else if (action === 'new-folder') openNamePrompt('new-folder', node, 'New folder name', 'New Folder');
   else if (action === 'rename') openNamePrompt('rename', node, 'Rename', node.name);
   else if (action === 'delete') await deleteWorkspaceNode(node);
@@ -278,9 +280,15 @@ async function confirmNamePrompt(rawValue: string) {
   else if (action === 'rename') await renameWorkspaceNode(node, value);
 }
 
-async function openFile(path: string) {
+async function openFile(path: string, newWindow: boolean) {
   if (consumeSuppressedClick()) return;
-  await requestOpenFromPath(editorStore, path);
+  if (newWindow) {
+    await requestOpenInNewWindow(path);
+    return;
+  }
+  // Plain click navigates the current window (windows mode replaces the
+  // document in place; tabs mode opens a tab) — see requestNavigateToPath.
+  await requestNavigateToPath(editorStore, path);
   if (editorStore.filePath === path) workspaceStore.setSelectedPath(path);
 }
 </script>

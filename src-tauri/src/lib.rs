@@ -216,6 +216,43 @@ fn is_path_already_pending(path: &str, pending: &HashMap<String, Vec<String>>) -
     pending.values().any(|q| q.contains(&path.to_string()))
 }
 
+/// Forward slashes, no trailing separator — mirrors the frontend's
+/// `normalizePath` so both sides agree on what counts as the same file.
+fn normalize_path_for_compare(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+/// Pure helper: label of the window whose reported status says it has `path`
+/// open. In tabs mode statuses track the *active* tab only, so a file sitting
+/// in a background tab won't match — the frontend's own tab dedup covers that.
+fn find_window_with_path(
+    path: &str,
+    statuses: &HashMap<String, WindowStatus>,
+) -> Option<String> {
+    let needle = normalize_path_for_compare(path);
+    statuses.iter().find_map(|(label, status)| {
+        status
+            .file_path
+            .as_deref()
+            .filter(|p| normalize_path_for_compare(p) == needle)
+            .map(|_| label.clone())
+    })
+}
+
+/// Best-effort show + unminimize + focus. Returns false when no window with
+/// that label exists (e.g. its status entry outlived the window by a tick).
+fn focus_window(app: &AppHandle, label: &str) -> bool {
+    match app.get_webview_window(label) {
+        Some(win) => {
+            let _ = win.show();
+            let _ = win.unminimize();
+            let _ = win.set_focus();
+            true
+        }
+        None => false,
+    }
+}
+
 fn handle_incoming_file(app: &AppHandle, path: String) {
     // OS-originated path ("Open With", argv, second launch) — a trusted,
     // user-initiated origin like a dialog pick. Grant scope before any
@@ -235,12 +272,22 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
         .map(|p| is_path_already_pending(&path, &p))
         .unwrap_or(false);
     if already_handled {
-        if let Some(win) = app.get_webview_window("main") {
-            let _ = win.show();
-            let _ = win.unminimize();
-            let _ = win.set_focus();
-        }
+        focus_window(app, "main");
         return;
+    }
+
+    // Already open in some window? Focus it instead of loading a second
+    // buffer of the same file that would silently diverge from the first
+    // one on edit.
+    let open_in = state
+        .window_statuses
+        .lock()
+        .ok()
+        .and_then(|statuses| find_window_with_path(&path, &statuses));
+    if let Some(label) = open_in {
+        if focus_window(app, &label) {
+            return;
+        }
     }
 
     // Tabs mode: route the file into an existing window so the frontend opens
@@ -258,11 +305,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
                 pending.entry(label.clone()).or_default().push(path);
             }
             let _ = app.emit_to(&label, "open-file-pending", ());
-            if let Some(win) = app.get_webview_window(&label) {
-                let _ = win.show();
-                let _ = win.unminimize();
-                let _ = win.set_focus();
-            }
+            focus_window(app, &label);
             return;
         }
     }
@@ -272,11 +315,7 @@ fn handle_incoming_file(app: &AppHandle, path: String) {
             pending.entry("main".to_string()).or_default().push(path);
         }
         let _ = app.emit_to("main", "open-file-pending", ());
-        if let Some(win) = app.get_webview_window("main") {
-            let _ = win.show();
-            let _ = win.unminimize();
-            let _ = win.set_focus();
-        }
+        focus_window(app, "main");
     } else {
         let label = next_window_label();
         if let Ok(mut pending) = state.pending_files.lock() {
@@ -410,6 +449,25 @@ fn list_system_fonts() -> Vec<String> {
         .clone()
 }
 
+/// Focuses the window that already has `path` open (as reported through
+/// `report_window_status`). Returns true when one was found and focused, so
+/// the frontend can skip opening a duplicate buffer of the same file. Safe to
+/// expose to the webview: it grants no scope and reads no file — worst case a
+/// hostile call shuffles window focus.
+#[tauri::command]
+fn focus_window_with_path(
+    app: AppHandle,
+    path: String,
+    state: tauri::State<'_, AppState>,
+) -> bool {
+    let label = state
+        .window_statuses
+        .lock()
+        .ok()
+        .and_then(|statuses| find_window_with_path(&path, &statuses));
+    label.is_some_and(|l| focus_window(&app, &l))
+}
+
 #[tauri::command]
 async fn open_new_window(
     app: tauri::AppHandle,
@@ -484,11 +542,7 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let paths = extract_files_from_args(args);
             if paths.is_empty() {
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.show();
-                    let _ = win.unminimize();
-                    let _ = win.set_focus();
-                }
+                focus_window(app, "main");
             } else {
                 for path in paths {
                     handle_incoming_file(app, path);
@@ -503,6 +557,7 @@ pub fn run() {
             report_window_status,
             list_system_fonts,
             open_new_window,
+            focus_window_with_path,
             pick_document,
             pick_save_path
         ])
@@ -707,6 +762,53 @@ mod tests {
             ("window_0".to_string(), false),
         ];
         assert_eq!(pick_target_window_label(&windows), Some("main".to_string()));
+    }
+
+    // ── find_window_with_path ───────────────────────────────────────────
+
+    #[test]
+    fn find_window_matches_exact_path() {
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), WindowStatus {
+            file_path: Some("/tmp/a.md".to_string()),
+            is_dirty: false,
+        });
+        statuses.insert("window_0".to_string(), WindowStatus {
+            file_path: Some("/tmp/b.md".to_string()),
+            is_dirty: true,
+        });
+        assert_eq!(find_window_with_path("/tmp/b.md", &statuses), Some("window_0".to_string()));
+        assert_eq!(find_window_with_path("/tmp/a.md", &statuses), Some("main".to_string()));
+    }
+
+    #[test]
+    fn find_window_none_when_path_not_open() {
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), WindowStatus {
+            file_path: Some("/tmp/a.md".to_string()),
+            is_dirty: false,
+        });
+        statuses.insert("window_0".to_string(), empty_status());
+        assert_eq!(find_window_with_path("/tmp/other.md", &statuses), None);
+        assert_eq!(find_window_with_path("/tmp/other.md", &HashMap::new()), None);
+    }
+
+    #[test]
+    fn find_window_normalizes_separators_and_trailing_slashes() {
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), WindowStatus {
+            file_path: Some("C:\\Docs\\note.md".to_string()),
+            is_dirty: false,
+        });
+        assert_eq!(find_window_with_path("C:/Docs/note.md", &statuses), Some("main".to_string()));
+        assert_eq!(find_window_with_path("C:/Docs/note.md/", &statuses), Some("main".to_string()));
+    }
+
+    #[test]
+    fn find_window_ignores_windows_without_a_file() {
+        let mut statuses = HashMap::new();
+        statuses.insert("main".to_string(), empty_status());
+        assert_eq!(find_window_with_path("/tmp/a.md", &statuses), None);
     }
 
     // ── is_path_already_pending ─────────────────────────────────────────

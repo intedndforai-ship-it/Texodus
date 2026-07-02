@@ -40,7 +40,7 @@
         :expanded-paths="expandedPaths"
         :dragging-path="draggingPath"
         :drop-target-path="dropTargetPath"
-        @open-file="$emit('open-file', $event)"
+        @open-file="(path, newWindow) => $emit('open-file', path, newWindow)"
         @toggle-directory="$emit('toggle-directory', $event)"
         @node-context-menu="(childNode, event) => $emit('node-context-menu', childNode, event)"
         @node-pointer-down="(childNode, event) => $emit('node-pointer-down', childNode, event)"
@@ -68,7 +68,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'open-file': [path: string];
+  'open-file': [path: string, newWindow: boolean];
   'toggle-directory': [path: string];
   'node-context-menu': [node: FileTreeNode, event: MouseEvent];
   'node-pointer-down': [node: FileTreeNode, event: PointerEvent];
@@ -81,11 +81,13 @@ const canDropHere = computed(() => {
   return props.draggingPath !== props.node.path && !isSameOrInside(props.node.path, props.draggingPath);
 });
 
-function handleClick() {
+function handleClick(event: MouseEvent) {
   if (props.node.kind === 'directory') {
     emit('toggle-directory', props.node.path);
   } else {
-    emit('open-file', props.node.path);
+    // Cmd (macOS) / Ctrl (Windows, Linux) + click = open in a new window.
+    // On macOS Ctrl+click never lands here — it fires `contextmenu` instead.
+    emit('open-file', props.node.path, event.metaKey || event.ctrlKey);
   }
 }
 

@@ -67,19 +67,17 @@ async function showOpenError(store: EditorStore, path: string, err: unknown): Pr
   await showError('Failed to open file', err);
 }
 
-export async function openFile(store: EditorStore): Promise<void> {
+/**
+ * Asks Rust to focus the window that already has `path` open (per the
+ * statuses collected via `report_window_status`). True when one was found —
+ * the caller should then skip opening a second buffer of the same file,
+ * which would silently diverge from the first one on edit.
+ */
+async function focusWindowWithPath(path: string): Promise<boolean> {
   try {
-    if (!(await confirmCanProceed(store))) return;
-
-    const path = await invoke<string | null>('pick_document');
-    if (!path) return;
-
-    const content = await readTextFile(path);
-    store.loadFile(content, path);
-    useSettingsStore().addRecentFile(path);
-    await updateWindowTitle(store);
-  } catch (e) {
-    await showError('Failed to open file', e);
+    return (await invoke<boolean>('focus_window_with_path', { path })) === true;
+  } catch {
+    return false;
   }
 }
 
@@ -169,24 +167,9 @@ export async function requestNewDocument(store: EditorStore): Promise<void> {
 }
 
 export async function requestOpenDocument(store: EditorStore): Promise<void> {
-  const settings = useSettingsStore();
-  if (settings.documentMode === 'tabs') {
-    const path = await invoke<string | null>('pick_document');
-    if (!path) return;
-    await requestOpenFromPath(store, path);
-  } else {
-    if (store.filePath || store.isDirty) {
-      const path = await invoke<string | null>('pick_document');
-      if (!path) return;
-      try {
-        await invoke('open_new_window', { path });
-      } catch (e) {
-        await showError('Failed to open new window', e);
-      }
-    } else {
-      await openFile(store);
-    }
-  }
+  const path = await invoke<string | null>('pick_document');
+  if (!path) return;
+  await requestOpenFromPath(store, path);
 }
 
 export async function requestOpenFromPath(store: EditorStore, path: string): Promise<void> {
@@ -207,6 +190,8 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
       await updateWindowTitle(store);
       return;
     }
+    // The active tab of another window? Focus that window instead.
+    if (await focusWindowWithPath(path)) return;
     try {
       const content = await readTextFile(path);
       if (isActiveTabEmpty(store)) {
@@ -220,6 +205,8 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
       await showOpenError(store, path, e);
     }
   } else {
+    // Some window (possibly this one) already shows the file? Focus it.
+    if (await focusWindowWithPath(path)) return;
     if (store.filePath || store.isDirty) {
       try {
         await invoke('open_new_window', { path });
@@ -229,6 +216,43 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
     } else {
       await loadFileFromPath(store, path);
     }
+  }
+}
+
+/**
+ * Sidebar/tree navigation: opens `path` in the *current* window instead of
+ * spawning a window per click the way `requestOpenFromPath` does in windows
+ * mode. A dirty document goes through the 3-button unsaved prompt (inside
+ * `loadFileFromPath`); a file already open in another window focuses that
+ * window instead of loading a duplicate buffer. Tabs mode keeps the regular
+ * open-as-tab behaviour.
+ */
+export async function requestNavigateToPath(store: EditorStore, path: string): Promise<void> {
+  const settings = useSettingsStore();
+  if (settings.documentMode === 'tabs') {
+    await requestOpenFromPath(store, path);
+    return;
+  }
+
+  // Flush any pending auto-save before switching documents.
+  if (settings.autoSave) await flushPendingSave();
+
+  if (store.filePath && normalizePath(store.filePath) === normalizePath(path)) return;
+  if (await focusWindowWithPath(path)) return;
+  await loadFileFromPath(store, path);
+}
+
+/**
+ * Explicit "open in a new window" (sidebar Cmd/Ctrl+click or context menu).
+ * Ignores documentMode — the user asked for a window — but still focuses an
+ * existing window when the file is already open somewhere.
+ */
+export async function requestOpenInNewWindow(path: string): Promise<void> {
+  if (await focusWindowWithPath(path)) return;
+  try {
+    await invoke('open_new_window', { path });
+  } catch (e) {
+    await showError('Failed to open new window', e);
   }
 }
 
