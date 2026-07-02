@@ -368,6 +368,12 @@ pub fn run() {
         .manage(state)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        // Persists the runtime fs/asset scope grants that native dialogs issue
+        // (picked files, workspace folders) across restarts. remove/rename/
+        // mkdir have no static scope in capabilities/default.json — without
+        // this, sidebar file ops on a remembered workspace would fail until
+        // the user re-picked the folder. Must init after the fs plugin.
+        .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         // Persists window size/position/maximized state across restarts.

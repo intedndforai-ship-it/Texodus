@@ -13,6 +13,12 @@ export async function selectWorkspaceFolder(): Promise<string | null> {
   const selected = await open({
     multiple: false,
     directory: true,
+    // The dialog plugin extends the runtime fs scope with the picked folder;
+    // `recursive` makes that grant cover subdirectories too. remove/rename/
+    // mkdir have NO static scope in capabilities/default.json — sidebar file
+    // ops anywhere inside the workspace depend on this recursive grant
+    // (persisted across restarts by tauri-plugin-persisted-scope).
+    recursive: true,
   });
 
   return typeof selected === 'string' ? selected : null;
