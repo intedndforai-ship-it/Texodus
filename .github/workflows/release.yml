@@ -62,6 +62,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build Tauri app and upload assets
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,3 +71,52 @@ jobs:
           releaseName: ${{ github.event.inputs.release_version != '' && format('Texodus v{0}', github.event.inputs.release_version) || 'Texodus v__VERSION__' }}
           releaseDraft: ${{ github.event.inputs.draft }}
           prerelease: false
+
+      # linuxdeploy bundles the build machine's (Ubuntu 22.04) Wayland/DRM
+      # client libraries into the AppImage. They get loaded ahead of the
+      # host's copies and then talk to the *host* Mesa driver — on recent
+      # Mesa (e.g. Arch + RDNA4) WebKitGTK's EGL init dies with "Could not
+      # create default EGL display: EGL_BAD_PARAMETER" (issue #4). These
+      # libs must come from the host, same reasoning as the AppImage
+      # excludelist, so strip them and repack. tauri-action has already
+      # uploaded the original AppImage at this point, hence the asset swap.
+      - name: Repack AppImage without bundled graphics client libs (Linux only)
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle/appimage
+          appimage=$(basename ./*.AppImage)
+
+          # The AppImage runtime extracts without FUSE.
+          ./"$appimage" --appimage-extract >/dev/null
+
+          find squashfs-root \( \
+            -name 'libwayland-*.so*' -o \
+            -name 'libgbm.so*' -o \
+            -name 'libdrm*.so*' -o \
+            -name 'libEGL.so*' -o \
+            -name 'libGL.so*' -o \
+            -name 'libGLX*.so*' -o \
+            -name 'libGLdispatch.so*' \
+          \) -print -delete
+
+          # Reference appimagetool, pinned to AppImageKit 13.
+          # --appimage-extract-and-run avoids needing FUSE on the runner.
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run squashfs-root "$appimage"
+
+          # Swap the already-uploaded release asset for the repacked one.
+          asset_id=$(gh api "/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" \
+            --jq ".[] | select(.name == \"${appimage}\") | .id")
+          if [ -n "$asset_id" ]; then
+            gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+          fi
+          gh api --method POST \
+            -H "Content-Type: application/octet-stream" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${appimage}" \
+            --input "$appimage" >/dev/null
