@@ -15,9 +15,10 @@ Download the latest release from the [releases page](https://github.com/w512/tex
 -   **Mermaid Diagrams**: Render flowcharts, sequence diagrams, and other Mermaid graph types inline in the preview, themed to match the active color scheme.
 -   **Local Images**: Embed images with relative (`![](images/foo.png)`) or absolute filesystem paths — resolved against the open document's directory via Tauri's asset protocol.
 -   **Export**: Save the current document as standalone HTML or PDF.
--   **Workspace Sidebar**: Open a folder to browse its Markdown files in a lazy-loaded tree, with a context menu to create, rename, delete, and reveal files.
+-   **Workspace Sidebar**: Open a folder to browse its Markdown files in a lazy-loaded tree, with a context menu to create, rename, delete, and reveal files. Clicking a file opens it in the current window; `Cmd/Ctrl+Click` (or the context menu) opens it in a new window.
+-   **Quick Open**: A `Cmd/Ctrl+P` palette to fuzzy-find and jump to any file in the workspace.
 -   **Document Search**: A full-width find bar (`Cmd/Ctrl+F`) with live match counts and case-sensitive, whole-word, and regular-expression toggles — works in both the editor and the live preview, with a configurable highlight color.
--   **Multi-Document & Multi-Window**: Open multiple documents in a new tabbed interface or separate native windows.
+-   **Multi-Document & Multi-Window**: Open multiple documents in a new tabbed interface or separate native windows. A file that is already open elsewhere gets its window focused instead of being opened twice.
 -   **Auto-Reload**: Files are automatically reloaded when they are changed on disk by external programs.
 -   **Settings Mode**: A dedicated settings mode for easier configuration.
 -   **Dynamic Layouts**: Switch between **Split View**, **Focus Mode** (editor only), and **Preview Only** modes.
@@ -87,6 +88,8 @@ bun run tauri build
 ```
 
 Linux builds produce `.deb`, `.AppImage`, and `.rpm` packages; macOS produces `.dmg` and `.app`; Windows produces an NSIS installer.
+
+> **Note (Linux/AppImage):** the release pipeline strips the bundled Wayland/DRM client libraries (`libwayland-*`, `libgbm`, `libdrm*`) from the AppImage after packaging so they resolve from the host — otherwise WebKitGTK's EGL init fails on recent Mesa (see the repack step in [`release.yml`](.github/workflows/release.yml)). A locally built AppImage does not get this treatment; if it aborts with `EGL_BAD_PARAMETER`, remove those libraries from the AppImage the same way.
 
 ## 🏗️ Project Structure
 
