@@ -11,7 +11,7 @@ vi.mock('../composables/useUnsavedPrompt', () => ({
 }));
 
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { message } from '@tauri-apps/plugin-dialog';
+import { confirm, message } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import {
   saveFile,
@@ -178,6 +178,48 @@ describe('requestOpenFromPath (tabs mode)', () => {
     expect(store.tabCount).toBe(2);
     expect(store.filePath).toBe('/tmp/c.md');
     expect(store.content).toBe('new content');
+  });
+});
+
+describe('requestOpenFromPath (scope-denied recovery)', () => {
+  const SCOPE_ERROR = new Error('forbidden path: /tmp/old.md');
+
+  it('offers the dialog and opens the picked file after a scope denial', async () => {
+    const store = useEditorStore();
+    useSettingsStore().setDocumentMode('tabs');
+    mockedReadTextFile.mockRejectedValueOnce(SCOPE_ERROR);
+    mockedReadTextFile.mockResolvedValueOnce('recovered');
+    vi.mocked(confirm).mockResolvedValue(true);
+    setMockInvoke('pick_document', () => '/tmp/old.md');
+
+    await requestOpenFromPath(store, '/tmp/old.md');
+
+    expect(invoke).toHaveBeenCalledWith('pick_document', { startIn: '/tmp/old.md' });
+    expect(store.content).toBe('recovered');
+    expect(store.filePath).toBe('/tmp/old.md');
+  });
+
+  it('stops when the user declines the recovery prompt', async () => {
+    const store = useEditorStore();
+    useSettingsStore().setDocumentMode('tabs');
+    mockedReadTextFile.mockRejectedValueOnce(SCOPE_ERROR);
+    vi.mocked(confirm).mockResolvedValue(false);
+
+    await requestOpenFromPath(store, '/tmp/old.md');
+
+    expect(invoke).not.toHaveBeenCalledWith('pick_document', expect.anything());
+    expect(store.filePath).toBeNull();
+  });
+
+  it('shows the plain error dialog for non-scope failures', async () => {
+    const store = useEditorStore();
+    useSettingsStore().setDocumentMode('tabs');
+    mockedReadTextFile.mockRejectedValueOnce(new Error('Disk I/O error'));
+
+    await requestOpenFromPath(store, '/tmp/broken.md');
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(message).toHaveBeenCalled();
   });
 });
 

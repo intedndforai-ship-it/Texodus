@@ -1,5 +1,5 @@
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { message } from '@tauri-apps/plugin-dialog';
+import { confirm, message } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../stores/editor';
@@ -34,20 +34,34 @@ async function confirmCanProceed(store: EditorStore): Promise<boolean> {
 }
 
 /** True when the fs plugin rejected the path as outside the granted scope
- *  (see the FS scope model in CLAUDE.md) rather than a real I/O failure. */
+ *  (see the FS scope model in CLAUDE.md) rather than a real I/O failure.
+ *  Release builds say "forbidden path: …"; debug builds append a
+ *  "…not allowed on the scope…" hint — match both. */
 function isScopeDenied(err: unknown): boolean {
-  return String(err instanceof Error ? err.message : err).includes('not allowed');
+  const text = String(err instanceof Error ? err.message : err);
+  return text.includes('forbidden path') || text.includes('not allowed');
 }
 
-/** Open failures where the path didn't come from a fresh dialog pick (recent
- *  files, preview links, session leftovers) may be scope denials — explain
- *  how to grant access instead of showing a cryptic plugin error. */
-async function showOpenError(path: string, err: unknown): Promise<void> {
+/**
+ * Recovery for scope-denied opens (recent files or preview links that predate
+ * the current grants): scope is only issued through real dialog interactions,
+ * so offer the native dialog pre-navigated to the file — one pick re-grants
+ * access and the file opens normally.
+ */
+async function recoverScopeDeniedOpen(store: EditorStore, path: string): Promise<void> {
+  const ok = await confirm(
+    `Texodus doesn't have access to:\n${path}\n\nAccess is granted through the system file dialog. Choose the file there to open it.`,
+    { title: 'No access to file', kind: 'warning', okLabel: 'Choose File…', cancelLabel: 'Cancel' },
+  );
+  if (!ok) return;
+  const picked = await invoke<string | null>('pick_document', { startIn: path });
+  if (!picked) return;
+  await requestOpenFromPath(store, picked);
+}
+
+async function showOpenError(store: EditorStore, path: string, err: unknown): Promise<void> {
   if (isScopeDenied(err)) {
-    await message(
-      `Texodus doesn't have access to:\n${path}\n\nOpen it via File → Open, or open its folder as a workspace, to grant access.`,
-      { title: 'No access to file', kind: 'warning' },
-    );
+    await recoverScopeDeniedOpen(store, path);
     return;
   }
   await showError('Failed to open file', err);
@@ -77,7 +91,7 @@ export async function loadFileFromPath(store: EditorStore, path: string): Promis
     useSettingsStore().addRecentFile(path);
     await updateWindowTitle(store);
   } catch (e) {
-    await showOpenError(path, e);
+    await showOpenError(store, path, e);
   }
 }
 
@@ -203,7 +217,7 @@ export async function requestOpenFromPath(store: EditorStore, path: string): Pro
       useSettingsStore().addRecentFile(path);
       await updateWindowTitle(store);
     } catch (e) {
-      await showOpenError(path, e);
+      await showOpenError(store, path, e);
     }
   } else {
     if (store.filePath || store.isDirty) {

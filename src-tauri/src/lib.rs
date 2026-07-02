@@ -329,13 +329,28 @@ const SAVE_EXTENSIONS: &[&str] = &["md", "markdown"];
 /// scope for the file's directory via `grant_path_scope` — relative images,
 /// sibling links and directory watching all need it. Async so the blocking
 /// dialog call runs off the main thread.
+///
+/// `start_in` powers the scope-recovery flow: when the frontend hits a scope
+/// denial on a known path (e.g. a recent file from before the hardening), it
+/// re-opens this dialog pre-navigated to that file so one pick re-grants it.
 #[tauri::command]
-async fn pick_document(app: AppHandle) -> Option<String> {
-    let picked = app
+async fn pick_document(app: AppHandle, start_in: Option<String>) -> Option<String> {
+    let mut dialog = app
         .dialog()
         .file()
-        .add_filter(DIALOG_FILTER_NAME, OPEN_EXTENSIONS)
-        .blocking_pick_file()?;
+        .add_filter(DIALOG_FILTER_NAME, OPEN_EXTENSIONS);
+    if let Some(start) = start_in {
+        let start = PathBuf::from(start);
+        if let Some(dir) = start.parent().filter(|d| !d.as_os_str().is_empty()) {
+            dialog = dialog.set_directory(dir);
+        }
+        if let Some(name) = start.file_name() {
+            // Pre-fills the name field where the platform supports it on
+            // open panels; harmlessly ignored elsewhere.
+            dialog = dialog.set_file_name(name.to_string_lossy());
+        }
+    }
+    let picked = dialog.blocking_pick_file()?;
     let path = picked.into_path().ok()?;
     grant_path_scope(&app, &path);
     Some(path.to_string_lossy().into_owned())
