@@ -33,6 +33,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 fontdb = "0.23"
 
+# AI Integration
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+tauri-plugin-store = "2"
+
 # Forwards argv from a second launch (e.g. double-clicking a .md while the app
 # is already running) into the existing instance. Desktop-only.
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]

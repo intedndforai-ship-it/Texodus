@@ -71,6 +71,7 @@ interface PersistedSettings {
   documentMode: DocumentMode;
   sidebarVisible: boolean;
   sidebarWidth: number;
+  aiPanelVisible: boolean;
   lastWorkspacePath: string | null;
   smoothScrollSync: boolean;
   searchHighlightColor: string;
@@ -98,6 +99,7 @@ const DEFAULTS: PersistedSettings = {
   documentMode: 'windows',
   sidebarVisible: true,
   sidebarWidth: 260,
+  aiPanelVisible: false,
   lastWorkspacePath: null,
   smoothScrollSync: false,
   searchHighlightColor: '#ffd54a',
@@ -165,6 +167,8 @@ export const useSettingsStore = defineStore('settings', {
     setDocumentMode(mode: DocumentMode) { this.documentMode = mode; },
     setSidebarVisible(v: boolean) { this.sidebarVisible = v; },
     toggleSidebar() { this.sidebarVisible = !this.sidebarVisible; },
+    setAiPanelVisible(v: boolean) { this.aiPanelVisible = v; },
+    toggleAiPanel() { this.aiPanelVisible = !this.aiPanelVisible; },
     setSmoothScrollSync(v: boolean) { this.smoothScrollSync = v; },
     setAutoSave(v: boolean) { this.autoSave = v; },
     setSearchHighlightColor(v: string) {

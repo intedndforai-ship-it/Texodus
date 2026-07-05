@@ -6,6 +6,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_fs::FsExt;
 
+pub mod ai;
+
 #[derive(Clone)]
 pub struct WindowStatus {
     pub file_path: Option<String>,
@@ -517,6 +519,7 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         // Persists window size/position/maximized state across restarts.
         // Saves on exit, restores automatically when the window is created.
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -559,7 +562,11 @@ pub fn run() {
             open_new_window,
             focus_window_with_path,
             pick_document,
-            pick_save_path
+            pick_save_path,
+            ai::ai_generate_mistral,
+            ai::ai_generate_nemotron,
+            ai::ai_generate_glm,
+            ai::ai_test_connection
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

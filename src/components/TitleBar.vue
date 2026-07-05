@@ -21,6 +21,16 @@
       </button>
 
       <button
+        id="btn-ai-panel"
+        class="tb-btn icon-only"
+        :class="{ active: aiPanelVisible }"
+        :title="aiPanelVisible ? 'Hide AI Assistant' : 'Show AI Assistant'"
+        @click="emit('toggle-ai-panel')"
+      >
+        <span class="tb-icon" :style="{ '--icon': `url(${iconAi})` }"></span>
+      </button>
+
+      <button
         id="btn-search"
         class="tb-btn icon-only"
         :class="{ active: searchOpen }"
@@ -73,11 +83,15 @@ import iconThemeLight from '../assets/icons/icons8-sun-100.png';
 import iconThemeDark from '../assets/icons/icons8-do-not-disturb-ios-100.png';
 import iconSidebar from '../assets/icons/icons8-sidebar-100.png';
 import iconSearch from '../assets/icons/icons8-search-100.png';
+// Reusing a built-in or base icon for AI, let's just use a string emoji for simplicity or a dummy url if we need an icon, but we can just use an emoji character inside the button if needed, or point to an existing icon. Wait, the app uses url() for masks. Let's just use the search icon or create a small text span instead of tb-icon for AI.
+// Actually, let's use the standard tb-icon approach with a base64 inline svg for the AI icon so it perfectly matches the style:
+const iconAi = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="black"><path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z"/></svg>';
 
 const props = withDefaults(defineProps<{
   layoutMode: LayoutMode;
   themeMode: ThemeMode;
   sidebarVisible: boolean;
+  aiPanelVisible: boolean;
   title?: string;
 }>(), {
   title: 'Texodus',
@@ -86,6 +100,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'toggle-layout': [mode: LayoutMode];
   'toggle-sidebar': [];
+  'toggle-ai-panel': [];
   'cycle-theme': [];
   format: [command: string];
 }>();

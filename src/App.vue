@@ -6,9 +6,11 @@
         :layoutMode="settingsStore.layoutMode"
         :themeMode="settingsStore.themeMode"
         :sidebarVisible="settingsStore.sidebarVisible"
+        :aiPanelVisible="settingsStore.aiPanelVisible"
         :title="windowTitle"
         @toggle-layout="settingsStore.setLayoutMode($event)"
         @toggle-sidebar="settingsStore.toggleSidebar()"
+        @toggle-ai-panel="settingsStore.toggleAiPanel()"
         @cycle-theme="settingsStore.cycleTheme()"
         @format="handleFormat"
       />
@@ -37,6 +39,16 @@
           <template #editor><TextEditor /></template>
           <template #preview><MarkdownPreview /></template>
         </EditorLayout>
+
+        <Transition name="sidebar-slide">
+          <AIPanel 
+            v-if="settingsStore.aiPanelVisible" 
+            selectedText=""
+            @insert="handleInsert"
+            @replace="handleReplace"
+            @append="handleAppend"
+          />
+        </Transition>
       </div>
     </div>
     <UnsavedChangesDialog />
@@ -63,6 +75,7 @@ import UnsavedChangesDialog from './components/UnsavedChangesDialog.vue';
 import AboutDialog from './components/AboutDialog.vue';
 import SettingsDialog from './components/SettingsDialog.vue';
 import QuickOpenPalette from './components/QuickOpenPalette.vue';
+import AIPanel from './components/AIPanel.vue';
 import {
   saveFile,
   updateWindowTitle,
@@ -98,6 +111,41 @@ useAutoSave(editorStore);
 useSessionRestore(editorStore);
 
 const handleFormat = (format: string) => applyFormat(format, getEditorView());
+
+const handleInsert = (text: string) => {
+  const view = getEditorView();
+  if (view) {
+    const transaction = view.state.update({
+      changes: { from: view.state.selection.main.head, insert: text }
+    });
+    view.dispatch(transaction);
+    view.focus();
+  }
+};
+
+const handleReplace = (text: string) => {
+  const view = getEditorView();
+  if (view) {
+    const { from, to } = view.state.selection.main;
+    const transaction = view.state.update({
+      changes: { from, to, insert: text }
+    });
+    view.dispatch(transaction);
+    view.focus();
+  }
+};
+
+const handleAppend = (text: string) => {
+  const view = getEditorView();
+  if (view) {
+    const docLength = view.state.doc.length;
+    const transaction = view.state.update({
+      changes: { from: docLength, insert: '\n\n' + text }
+    });
+    view.dispatch(transaction);
+    view.focus();
+  }
+};
 
 // ── Resizable sidebar ─────────────────────────────────────────────────────────
 

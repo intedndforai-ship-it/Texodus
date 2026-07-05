@@ -163,6 +163,47 @@
               @update:model-value="settingsStore.setColorScheme($event)"
             />
           </div>
+
+          <div class="settings-section">
+            <span class="section-label">AI Configuration</span>
+            <div class="ai-settings-desc">API keys are stored securely on your device and are only used for local generation.</div>
+            
+            <div class="settings-row">
+              <label for="ai-mistral">Mistral API Key</label>
+              <input 
+                id="ai-mistral"
+                type="password" 
+                class="text-input" 
+                placeholder="sk-..." 
+                :value="ai.aiKeys.value.mistral" 
+                @change="ai.saveKey('mistral', ($event.target as HTMLInputElement).value)"
+              />
+            </div>
+            
+            <div class="settings-row">
+              <label for="ai-nemotron">Nemotron API Key (OpenRouter)</label>
+              <input 
+                id="ai-nemotron"
+                type="password" 
+                class="text-input" 
+                placeholder="sk-or-v1-..." 
+                :value="ai.aiKeys.value.nemotron" 
+                @change="ai.saveKey('nemotron', ($event.target as HTMLInputElement).value)"
+              />
+            </div>
+            
+            <div class="settings-row">
+              <label for="ai-glm">GLM 5.2 API Key (OpenRouter)</label>
+              <input 
+                id="ai-glm"
+                type="password" 
+                class="text-input" 
+                placeholder="sk-or-v1-..." 
+                :value="ai.aiKeys.value.glm" 
+                @change="ai.saveKey('glm', ($event.target as HTMLInputElement).value)"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -181,8 +222,10 @@ import {
 import SettingsStepper from './SettingsStepper.vue';
 import ColorSchemePicker from './ColorSchemePicker.vue';
 import { useSystemFonts } from '../composables/useSystemFonts';
+import { useAI } from '../composables/useAI';
 
 const settingsStore = useSettingsStore();
+const ai = useAI();
 const {
   loading: systemFontsLoading,
   error: systemFontsError,
@@ -210,6 +253,7 @@ watch(
 onMounted(() => {
   window.addEventListener('keydown', onKey);
   if (settingsStore.settingsVisible) void loadSystemFonts();
+  ai.loadKeys();
 });
 onUnmounted(() => window.removeEventListener('keydown', onKey));
 </script>
@@ -434,6 +478,28 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
   font-size: 0.8125rem;
   color: var(--text-muted);
   font-weight: 500;
+}
+
+.text-input {
+  flex: 1;
+  max-width: 58%;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.text-input:focus {
+  outline: 2px solid var(--accent-subtle);
+  border-color: var(--accent-color);
+}
+
+.ai-settings-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
 }
 
 .fade-enter-active,

@@ -48,6 +48,7 @@
     "shell:default",
     "shell:allow-open",
     "core:window:allow-start-dragging",
-    "window-state:default"
+    "window-state:default",
+    "store:default"
   ]
 }
